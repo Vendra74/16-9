@@ -30,5 +30,6 @@ npm run lint
 - `src/app/`: telas (cada arquivo é uma rota). Feed, Explorar, Publicar e Perfil.
 - `src/components/aperture.tsx`: o diafragma animado (abertura do app e indicador de carregamento).
 - `src/components/side-rail.tsx`: o trilho de navegação na lateral. A tela do iPhone deitado é mais larga que 16:9, então a sobra vira o menu e a imagem nunca é coberta.
-- `src/components/frame.tsx`: a moldura 16:9 onde todo trabalho é exibido.
+- `src/components/post-card.tsx`: um trabalho no feed, na moldura 16:9, com autor, ficha técnica, curtidas e comentários.
+- `src/data/mock-feed.ts`: feed de demonstração com perfis fictícios e fotos do Lorem Picsum, até o backend existir.
 - `src/constants/theme.ts`: cores e medidas da identidade visual.

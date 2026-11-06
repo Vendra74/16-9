@@ -1,10 +1,11 @@
 import { DarkTheme, ThemeProvider } from 'expo-router';
-import { TabSlot, Tabs } from 'expo-router/ui';
+import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 
-import { SideRail } from '@/components/side-rail';
+import { ExploreIcon, FeedIcon, ProfileIcon, PublishIcon } from '@/components/rail-icons';
+import { RailButton, RailSpacer, useRailStyle } from '@/components/side-rail';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { Colors } from '@/constants/theme';
 
@@ -16,11 +17,29 @@ const theme = {
 };
 
 export default function RootLayout() {
+  const railStyle = useRailStyle();
+
+  // O TabList precisa ser filho direto de Tabs, e os TabTrigger filhos
+  // diretos do TabList: é assim que o Expo Router descobre as abas.
   return (
     <ThemeProvider value={theme}>
       <StatusBar hidden />
       <Tabs style={styles.root}>
-        <SideRail />
+        <TabList style={railStyle}>
+          <TabTrigger name="index" href="/" asChild>
+            <RailButton label="Feed" route="/" Icon={FeedIcon} />
+          </TabTrigger>
+          <TabTrigger name="explore" href="/explore" asChild>
+            <RailButton label="Explorar" route="/explore" Icon={ExploreIcon} />
+          </TabTrigger>
+          <TabTrigger name="publish" href="/publish" asChild>
+            <RailButton label="Publicar" route="/publish" Icon={PublishIcon} />
+          </TabTrigger>
+          <RailSpacer />
+          <TabTrigger name="profile" href="/profile" asChild>
+            <RailButton label="Perfil" route="/profile" Icon={ProfileIcon} />
+          </TabTrigger>
+        </TabList>
         <TabSlot style={styles.content} />
       </Tabs>
       <SplashOverlay />

@@ -1,35 +1,54 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { FlatList, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
-import { ApertureLoader } from '@/components/aperture';
-import { Frame } from '@/components/frame';
-import { Colors, Spacing } from '@/constants/theme';
+import { PostCard } from '@/components/post-card';
+import { Colors, FrameRatio } from '@/constants/theme';
+import { MOCK_FEED } from '@/data/mock-feed';
 
-/** Feed: um trabalho por vez, ocupando a moldura 16:9 inteira. */
+/**
+ * Feed: um trabalho por vez, na maior moldura 16:9 que cabe ao lado do
+ * trilho. Deslize para cima para o próximo.
+ */
 export default function FeedScreen() {
+  const [area, setArea] = useState({ width: 0, height: 0 });
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setArea({ width, height });
+  };
+
+  const frameW = Math.min(area.width, area.height * FrameRatio);
+  const frameH = frameW / FrameRatio;
+
   return (
-    <Frame>
-      <View style={styles.center}>
-        <ApertureLoader size={44} background={Colors.surface} />
-        <Text style={styles.title}>Seu feed aparece aqui</Text>
-        <Text style={styles.subtitle}>Fotos e vídeos em 16:9, um de cada vez, em tela cheia.</Text>
-      </View>
-    </Frame>
+    <View style={styles.container} onLayout={onLayout}>
+      {area.height > 0 && (
+        <FlatList
+          data={MOCK_FEED}
+          keyExtractor={(item) => item.id}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          decelerationRate="fast"
+          getItemLayout={(_, index) => ({ length: area.height, offset: area.height * index, index })}
+          renderItem={({ item }) => (
+            <View style={[styles.page, { height: area.height }]}>
+              <PostCard post={item} width={frameW} height={frameH} />
+            </View>
+          )}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: {
+  container: {
+    flex: 1,
+    alignSelf: 'stretch',
+    backgroundColor: Colors.background,
+  },
+  page: {
     alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  title: {
-    color: Colors.text,
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: Spacing.sm,
-  },
-  subtitle: {
-    color: Colors.textSecondary,
-    fontSize: 13,
+    justifyContent: 'center',
   },
 });
