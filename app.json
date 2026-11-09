@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "16:9",
+    "name": "SixteenNine",
     "slug": "sixteen-nine",
     "version": "0.1.0",
     "orientation": "landscape",
@@ -14,6 +14,9 @@
       "bundleIdentifier": "br.com.vendra.sixteennine",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDisplayName": "16:9"
       }
     },
     "android": {
