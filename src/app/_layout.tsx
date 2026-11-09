@@ -1,13 +1,11 @@
-import { DarkTheme, ThemeProvider } from 'expo-router';
-import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { ExploreIcon, FeedIcon, ProfileIcon, PublishIcon } from '@/components/rail-icons';
-import { RailButton, RailSpacer, useRailStyle } from '@/components/side-rail';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { Colors } from '@/constants/theme';
+import { SessionProvider, useSession } from '@/lib/session';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,43 +15,39 @@ const theme = {
 };
 
 export default function RootLayout() {
-  const railStyle = useRailStyle();
-
-  // O TabList precisa ser filho direto de Tabs, e os TabTrigger filhos
-  // diretos do TabList: é assim que o Expo Router descobre as abas.
   return (
-    <ThemeProvider value={theme}>
-      <StatusBar hidden />
-      <Tabs style={styles.root}>
-        <TabList style={railStyle}>
-          <TabTrigger name="index" href="/" asChild>
-            <RailButton label="Feed" route="/" Icon={FeedIcon} />
-          </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <RailButton label="Explorar" route="/explore" Icon={ExploreIcon} />
-          </TabTrigger>
-          <TabTrigger name="publish" href="/publish" asChild>
-            <RailButton label="Publicar" route="/publish" Icon={PublishIcon} />
-          </TabTrigger>
-          <RailSpacer />
-          <TabTrigger name="profile" href="/profile" asChild>
-            <RailButton label="Perfil" route="/profile" Icon={ProfileIcon} />
-          </TabTrigger>
-        </TabList>
-        <TabSlot style={styles.content} />
-      </Tabs>
-      <SplashOverlay />
-    </ThemeProvider>
+    <SessionProvider>
+      <ThemeProvider value={theme}>
+        <StatusBar hidden />
+        <RootNavigator />
+        <SplashOverlay />
+      </ThemeProvider>
+    </SessionProvider>
+  );
+}
+
+/** Sem sessão, só a tela de entrada existe; com sessão, o app inteiro. */
+function RootNavigator() {
+  const { session, loading } = useSession();
+
+  // A abertura com o diafragma cobre a tela enquanto a sessão salva é lida.
+  if (loading) return <View style={styles.blank} />;
+
+  return (
+    <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+      <Stack.Protected guard={!!session}>
+        <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={!session}>
+        <Stack.Screen name="sign-in" />
+      </Stack.Protected>
+    </Stack>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  blank: {
     flex: 1,
-    flexDirection: 'row',
     backgroundColor: Colors.background,
-  },
-  content: {
-    flex: 1,
   },
 });

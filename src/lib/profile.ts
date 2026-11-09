@@ -1,0 +1,56 @@
+import { supabase } from '@/lib/supabase';
+
+export type Profile = {
+  id: string;
+  username: string;
+  display_name: string;
+  specialty: string;
+  city: string;
+  bio: string;
+};
+
+export type ProfileChanges = Partial<Omit<Profile, 'id'>>;
+
+export const USERNAME_PATTERN = /^[a-z0-9_.]{3,24}$/;
+
+/** Deixa o @ no formato aceito: minúsculas, sem espaço nem acento. */
+export function normalizeUsername(value: string) {
+  return value
+    .trim()
+    .replace(/^@/, '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_.]/g, '');
+}
+
+export async function fetchProfile(userId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, specialty, city, bio')
+    .eq('id', userId)
+    .single<Profile>();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateProfile(userId: string, changes: ProfileChanges) {
+  const { error } = await supabase.from('profiles').update(changes).eq('id', userId);
+  if (error) {
+    if (error.code === '23505') throw new Error('Esse @ já está em uso.');
+    throw error;
+  }
+}
+
+export async function isUsernameAvailable(username: string) {
+  const { data, error } = await supabase.rpc('username_available', { name: username });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function sendFeedback(message: string, appVersion: string, platform: string) {
+  const { error } = await supabase
+    .from('feedback')
+    .insert({ message, app_version: appVersion, platform });
+  if (error) throw error;
+}

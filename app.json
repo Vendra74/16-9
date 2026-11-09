@@ -10,7 +10,11 @@
     "backgroundColor": "#000000",
     "ios": {
       "supportsTablet": false,
-      "requireFullScreen": true
+      "requireFullScreen": true,
+      "bundleIdentifier": "br.com.vendra.sixteennine",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +23,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "br.com.vendra.sixteennine"
     },
     "web": {
       "output": "static",
