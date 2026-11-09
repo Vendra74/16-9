@@ -13,7 +13,6 @@ O plano do produto (público, MVP, stack e roadmap) está no documento do projet
 
 ```bash
 npm install
-cp .env.example .env.local   # e preencha com os dados do Supabase
 npx expo start
 ```
 
@@ -28,7 +27,7 @@ Para ligar o backend:
 1. Crie um projeto em [supabase.com](https://supabase.com) (região São Paulo).
 2. No **SQL Editor**, rode `supabase/migrations/20261109000000_profiles_feedback.sql`. Ele cria as tabelas `profiles` e `feedback` com as regras de acesso.
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email** durante os testes. O e-mail embutido do Supabase só envia poucas mensagens por hora; para exigir confirmação, configure um SMTP próprio antes.
-4. Em **Project Settings > API**, copie a URL e a chave *publishable* (ou *anon*) para `.env.local` e para as variáveis do EAS (abaixo).
+4. A URL e a chave *publishable* ficam em `.env` (já preenchido com o projeto do 16:9). O EAS envia esse arquivo junto no build. Para apontar para outro projeto só na sua máquina, crie um `.env.local`, que tem prioridade.
 
 O feedback dos testers aparece em **Table Editor > feedback**. Para trocar a senha de alguém, use **Authentication > Users**.
 
@@ -39,8 +38,6 @@ Precisa de uma conta Apple Developer (US$ 99/ano) e de uma conta Expo. Tudo comp
 ```bash
 npx eas-cli@latest login
 npx eas-cli@latest init                      # liga o app a um projeto Expo
-npx eas-cli@latest env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL --value https://SEU-PROJETO.supabase.co --visibility plaintext
-npx eas-cli@latest env:create --environment production --name EXPO_PUBLIC_SUPABASE_KEY --value sb_publishable_... --visibility plaintext
 npx eas-cli@latest build -p ios --profile production --auto-submit
 ```
 
