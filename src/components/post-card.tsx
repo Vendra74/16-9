@@ -1,67 +1,35 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 
 import { ApertureLoader } from '@/components/aperture';
+import { Avatar } from '@/components/avatar';
 import { Colors, Spacing } from '@/constants/theme';
-import type { Post } from '@/data/mock-feed';
-
-function formatCount(n: number) {
-  return n >= 1000 ? `${(n / 1000).toFixed(1).replace('.', ',')} mil` : String(n);
-}
-
-function initials(name: string) {
-  const parts = name.split(' ');
-  return (parts[0][0] + (parts.at(-1)?.[0] ?? '')).toUpperCase();
-}
-
-function HeartIcon({ filled }: { filled: boolean }) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Path
-        d="M12 20.5s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8c0 5.5-7.5 10.1-7.5 10.1Z"
-        fill={filled ? Colors.text : 'none'}
-        stroke={Colors.text}
-        strokeWidth={1.8}
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
-function CommentIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M4.5 18.5V6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8.5l-4 2Z"
-        stroke={Colors.text}
-        strokeWidth={1.8}
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
+import { settingsLine } from '@/lib/exif';
+import { postImageUrl, type FeedPost } from '@/lib/posts';
 
 /**
  * Um trabalho no feed, ocupando a moldura 16:9 inteira.
  * Um toque mostra ou esconde as informações; a imagem é a protagonista.
  */
-export function PostCard({ post, width, height }: { post: Post; width: number; height: number }) {
+export function PostCard({ post, width, height }: { post: FeedPost; width: number; height: number }) {
   const [loaded, setLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
-  const [liked, setLiked] = useState(false);
+  const name = post.author?.display_name || post.author?.username || 'Alguém';
+  const settings = settingsLine(post);
+  const gear = [post.camera, post.lens, settings].filter(Boolean).join(' · ');
+  const hasCaption = Boolean(post.title || post.location || gear);
 
   return (
     <Pressable style={[styles.frame, { width, height }]} onPress={() => setShowInfo((v) => !v)}>
       <Image
-        source={{ uri: post.imageUrl }}
+        source={{ uri: postImageUrl(post) }}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
         transition={400}
         recyclingKey={post.id}
         onLoad={() => setLoaded(true)}
-        accessibilityLabel={post.title}
+        accessibilityLabel={post.title || `Foto de ${name}`}
       />
 
       {!loaded && (
@@ -73,40 +41,22 @@ export function PostCard({ post, width, height }: { post: Post; width: number; h
       {showInfo && (
         <>
           <View style={styles.top}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials(post.author.name)}</Text>
-            </View>
+            <Avatar name={name} url={post.author?.avatar_url} size={34} />
             <View>
-              <Text style={styles.author}>{post.author.name}</Text>
+              <Text style={styles.author}>{name}</Text>
               <Text style={styles.meta}>
-                @{post.author.handle} · {post.author.specialty}
+                {[post.author && `@${post.author.username}`, post.author?.specialty].filter(Boolean).join(' · ')}
               </Text>
             </View>
           </View>
 
-          <View style={styles.bottom}>
-            <View style={styles.caption}>
-              <Text style={styles.category}>{post.category.toUpperCase()}</Text>
-              <Text style={styles.title}>{post.title}</Text>
-              <Text style={styles.meta}>{post.location}</Text>
-              {post.gear && (
-                <Text style={styles.gear}>
-                  {post.gear.camera} · {post.gear.lens} · {post.gear.settings}
-                </Text>
-              )}
+          {hasCaption && (
+            <View style={styles.bottom}>
+              {post.title ? <Text style={styles.title}>{post.title}</Text> : null}
+              {post.location ? <Text style={styles.meta}>{post.location}</Text> : null}
+              {gear ? <Text style={styles.gear}>{gear}</Text> : null}
             </View>
-
-            <View style={styles.actions}>
-              <Pressable style={styles.action} onPress={() => setLiked((v) => !v)} hitSlop={8}>
-                <HeartIcon filled={liked} />
-                <Text style={styles.actionText}>{formatCount(post.likes + (liked ? 1 : 0))}</Text>
-              </Pressable>
-              <View style={styles.action}>
-                <CommentIcon />
-                <Text style={styles.actionText}>{formatCount(post.comments)}</Text>
-              </View>
-            </View>
-          </View>
+          )}
         </>
       )}
     </Pressable>
@@ -144,21 +94,6 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     backgroundColor: 'rgba(0,0,0,0.18)',
   },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.silver,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: Colors.text,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   author: {
     color: Colors.text,
     fontSize: 14,
@@ -175,22 +110,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    gap: 2,
     padding: Spacing.md,
     backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  caption: {
-    flex: 1,
-    gap: 2,
-  },
-  category: {
-    color: Colors.silver,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 2,
-    ...shadow,
   },
   title: {
     color: Colors.text,
@@ -199,23 +121,9 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   gear: {
-    color: Colors.textSecondary,
-    fontSize: 10,
-    marginTop: 2,
-    ...shadow,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  action: {
-    alignItems: 'center',
-    gap: 2,
-  },
-  actionText: {
-    color: Colors.text,
+    color: Colors.silver,
     fontSize: 11,
-    fontWeight: '600',
+    marginTop: 2,
     ...shadow,
   },
 });

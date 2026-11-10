@@ -20,10 +20,10 @@ export default function AppLayout() {
         <TabTrigger name="explore" href="/explore" asChild>
           <RailButton label="Explorar" route="/explore" Icon={ExploreIcon} />
         </TabTrigger>
+        <RailSpacer />
         <TabTrigger name="publish" href="/publish" asChild>
           <RailButton label="Publicar" route="/publish" Icon={PublishIcon} />
         </TabTrigger>
-        <RailSpacer />
         <TabTrigger name="profile" href="/profile" asChild>
           <RailButton label="Perfil" route="/profile" Icon={ProfileIcon} />
         </TabTrigger>

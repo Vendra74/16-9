@@ -1,10 +1,9 @@
 import { usePathname } from 'expo-router';
 import type { TabTriggerSlotProps } from 'expo-router/ui';
 import type { ComponentType } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { Colors, RailWidth, Spacing } from '@/constants/theme';
+import { Colors, FrameRatio, RailWidth, Spacing } from '@/constants/theme';
 
 type RailButtonProps = Omit<TabTriggerSlotProps, 'ref'> & {
   label: string;
@@ -31,20 +30,24 @@ export function RailSpacer() {
 }
 
 /**
- * Estilo do trilho vertical na lateral esquerda. Em paisagem, a tela do
- * iPhone é mais larga que 16:9: a faixa que sobra vira o menu e a imagem
- * nunca é coberta.
+ * Largura do trilho. Em paisagem a tela do iPhone é mais larga que 16:9:
+ * a moldura ocupa a altura toda e a sobra é dividida igualmente entre os
+ * dois lados. O trilho mora na sobra da esquerda, por cima da área da
+ * câmera; a da direita fica livre (o iPhone pode estar virado para o outro lado).
+ */
+export function useRailWidth() {
+  const { width, height } = useWindowDimensions();
+  const frame = Math.min(width - RailWidth, height * FrameRatio);
+  return Math.max(RailWidth, Math.floor((width - frame) / 2));
+}
+
+/**
+ * Estilo do trilho vertical na lateral esquerda. Os botões ficam em dois
+ * grupos (topo e base) para não passarem por trás da Dynamic Island, que
+ * fica no meio da borda quando o iPhone está deitado.
  */
 export function useRailStyle() {
-  const insets = useSafeAreaInsets();
-  return [
-    styles.rail,
-    {
-      width: RailWidth + insets.left,
-      paddingLeft: insets.left,
-      paddingVertical: Math.max(insets.top, Spacing.md),
-    },
-  ];
+  return [styles.rail, { width: useRailWidth() }];
 }
 
 const styles = StyleSheet.create({
@@ -52,18 +55,20 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: Spacing.lg,
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
     backgroundColor: Colors.background,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: Colors.border,
   },
   button: {
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 3,
     width: RailWidth,
+    paddingVertical: 2,
   },
   label: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     letterSpacing: 0.4,
   },

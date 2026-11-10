@@ -22,8 +22,8 @@ export const Spacing = {
   xl: 32,
 } as const;
 
-/** Largura do trilho lateral de navegação (fora da área segura). */
-export const RailWidth = 72;
+/** Largura mínima do trilho lateral de navegação. */
+export const RailWidth = 64;
 
 /** Proporção única de todo conteúdo publicado. */
 export const FrameRatio = 16 / 9;

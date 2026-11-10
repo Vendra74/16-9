@@ -1,11 +1,18 @@
 import Constants from 'expo-constants';
-import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
+import { Avatar } from '@/components/avatar';
 import { Button, Field, FormMessage } from '@/components/form';
-import { Colors, Spacing } from '@/constants/theme';
+import { Colors, FrameRatio, Spacing } from '@/constants/theme';
+import { settingsLine } from '@/lib/exif';
+import { cropAndResize, publicUrl, uploadJpeg } from '@/lib/images';
+import { deletePost, fetchUserPosts, postImageUrl, type FeedPost } from '@/lib/posts';
 import {
   fetchProfile,
   normalizeUsername,
@@ -27,6 +34,8 @@ export default function ProfileScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>('works');
   const [attempt, setAttempt] = useState(0);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -38,6 +47,39 @@ export default function ProfileScreen() {
       active = false;
     };
   }, [userId, attempt]);
+
+  async function changeAvatar() {
+    if (!profile) return;
+    setAvatarError(null);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setAvatarBusy(true);
+    try {
+      // O editor do sistema já devolve quadrado; o recorte garante isso no web e no Android.
+      const side = Math.min(asset.width, asset.height);
+      const square = {
+        originX: Math.floor((asset.width - side) / 2),
+        originY: Math.floor((asset.height - side) / 2),
+        width: side,
+        height: side,
+      };
+      const image = await cropAndResize(asset.uri, square, 512);
+      const path = await uploadJpeg('avatars', profile.id, image.uri);
+      const avatar_url = publicUrl('avatars', path);
+      await updateProfile(profile.id, { avatar_url });
+      setProfile({ ...profile, avatar_url });
+    } catch {
+      setAvatarError('Não foi possível trocar a foto.');
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
 
   function retry() {
     setLoadError(null);
@@ -64,9 +106,18 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.screen, { paddingRight: insets.right }]}>
       <ScrollView style={styles.side} contentContainerStyle={[styles.sideContent, { paddingTop: Math.max(insets.top, Spacing.lg) }]}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{(profile.display_name || profile.username).charAt(0).toUpperCase()}</Text>
-        </View>
+        <Pressable onPress={changeAvatar} disabled={avatarBusy} accessibilityLabel="Trocar foto de perfil">
+          <Avatar name={profile.display_name || profile.username} url={profile.avatar_url} size={72} />
+          {avatarBusy ? (
+            <View style={styles.avatarBusy}>
+              <ApertureLoader size={28} background={Colors.surfaceRaised} />
+            </View>
+          ) : null}
+        </Pressable>
+        <Pressable onPress={changeAvatar} disabled={avatarBusy} hitSlop={6}>
+          <Text style={styles.changePhoto}>{profile.avatar_url ? 'Trocar foto' : 'Adicionar foto'}</Text>
+        </Pressable>
+        <FormMessage text={avatarError} />
         <Text style={styles.name}>{profile.display_name || profile.username}</Text>
         <Text style={styles.handle}>@{profile.username}</Text>
         {details ? <Text style={styles.details}>{details}</Text> : null}
@@ -105,12 +156,80 @@ export default function ProfileScreen() {
         ) : panel === 'feedback' ? (
           <FeedbackForm onSent={() => setPanel('works')} />
         ) : (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Seus trabalhos em 16:9</Text>
-            <Text style={styles.emptyText}>Quando a publicação estiver pronta, seu portfólio aparece aqui.</Text>
-          </View>
+          <MyWorks userId={profile.id} />
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+/** Portfólio: os trabalhos da pessoa em 16:9. Segurar um trabalho oferece apagar. */
+function MyWorks({ userId }: { userId: string }) {
+  const [posts, setPosts] = useState<FeedPost[] | null>(null);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(() => {
+    fetchUserPosts(userId)
+      .then((data) => {
+        setPosts(data);
+        setError(false);
+      })
+      .catch(() => setError(true));
+  }, [userId]);
+
+  useFocusEffect(load);
+
+  function confirmDelete(post: FeedPost) {
+    Alert.alert('Apagar este trabalho?', 'Ele sai do feed e do seu perfil. Não dá para desfazer.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Apagar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deletePost(post);
+            setPosts((list) => list?.filter((p) => p.id !== post.id) ?? null);
+          } catch {
+            Alert.alert('Não foi possível apagar', 'Confira a internet e tente de novo.');
+          }
+        },
+      },
+    ]);
+  }
+
+  if (posts === null) {
+    return (
+      <View style={styles.empty}>
+        {error ? <FormMessage text="Não foi possível carregar seus trabalhos." /> : <ApertureLoader />}
+      </View>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyTitle}>Seus trabalhos em 16:9</Text>
+        <Text style={styles.emptyText}>O que você publicar aparece aqui, formando seu portfólio.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.grid}>
+      <Text style={styles.gridTitle}>
+        {posts.length} {posts.length === 1 ? 'trabalho' : 'trabalhos'}
+      </Text>
+      <View style={styles.gridItems}>
+        {posts.map((post) => (
+          <Pressable key={post.id} style={styles.tile} onLongPress={() => confirmDelete(post)} delayLongPress={350}>
+            <Image source={{ uri: postImageUrl(post) }} style={styles.tileImage} contentFit="cover" transition={200} />
+            <Text style={styles.tileTitle} numberOfLines={1}>
+              {post.title || post.location || settingsLine(post) || ' '}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.hint}>Segure um trabalho para apagar.</Text>
     </View>
   );
 }
@@ -252,21 +371,23 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
     gap: Spacing.xs,
   },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+  avatarBusy: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    borderRadius: 36,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  avatarText: {
-    color: Colors.silver,
-    fontSize: 30,
-    fontWeight: '700',
+  changePhoto: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   name: {
     color: Colors.text,
@@ -321,6 +442,37 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 14,
     maxWidth: 420,
+  },
+  grid: {
+    gap: Spacing.sm,
+  },
+  gridTitle: {
+    color: Colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  gridItems: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  tile: {
+    width: 176,
+    gap: 4,
+  },
+  tileImage: {
+    width: 176,
+    aspectRatio: FrameRatio,
+    backgroundColor: Colors.surface,
+  },
+  tileTitle: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+  },
+  hint: {
+    color: Colors.textMuted,
+    fontSize: 11,
+    marginTop: Spacing.xs,
   },
   form: {
     gap: Spacing.md,
