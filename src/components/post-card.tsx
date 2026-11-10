@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
+import { MessagesIcon, MoreIcon, SendIcon } from '@/components/rail-icons';
 import { Colors, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
 import { postImageUrl, type FeedPost } from '@/lib/posts';
@@ -12,7 +13,17 @@ import { postImageUrl, type FeedPost } from '@/lib/posts';
  * Um trabalho no feed, ocupando a moldura 16:9 inteira.
  * Um toque mostra ou esconde as informações; a imagem é a protagonista.
  */
-export function PostCard({ post, width, height }: { post: FeedPost; width: number; height: number }) {
+type Props = {
+  post: FeedPost;
+  width: number;
+  height: number;
+  isMine: boolean;
+  onMessage: () => void;
+  onShare: () => void;
+  onMore: () => void;
+};
+
+export function PostCard({ post, width, height, isMine, onMessage, onShare, onMore }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   const name = post.author?.display_name || post.author?.username || 'Alguém';
@@ -42,21 +53,38 @@ export function PostCard({ post, width, height }: { post: FeedPost; width: numbe
         <>
           <View style={styles.top}>
             <Avatar name={name} url={post.author?.avatar_url} size={34} />
-            <View>
+            <View style={styles.flex}>
               <Text style={styles.author}>{name}</Text>
               <Text style={styles.meta}>
                 {[post.author && `@${post.author.username}`, post.author?.specialty].filter(Boolean).join(' · ')}
               </Text>
             </View>
+            {!isMine ? (
+              <Pressable onPress={onMore} hitSlop={10} accessibilityLabel="Denunciar ou bloquear">
+                <MoreIcon color={Colors.text} />
+              </Pressable>
+            ) : null}
           </View>
 
-          {hasCaption && (
-            <View style={styles.bottom}>
+          <View style={[styles.bottom, !hasCaption && styles.bottomBare]}>
+            <View style={styles.caption}>
               {post.title ? <Text style={styles.title}>{post.title}</Text> : null}
               {post.location ? <Text style={styles.meta}>{post.location}</Text> : null}
               {gear ? <Text style={styles.gear}>{gear}</Text> : null}
             </View>
-          )}
+            <View style={styles.actions}>
+              {!isMine ? (
+                <Pressable style={styles.action} onPress={onMessage} hitSlop={8} accessibilityLabel={`Mandar mensagem para ${name}`}>
+                  <MessagesIcon color={Colors.text} size={24} />
+                  <Text style={styles.actionText}>Mensagem</Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={styles.action} onPress={onShare} hitSlop={8} accessibilityLabel="Enviar para alguém">
+                <SendIcon color={Colors.text} size={24} />
+                <Text style={styles.actionText}>Enviar</Text>
+              </Pressable>
+            </View>
+          </View>
         </>
       )}
     </Pressable>
@@ -70,6 +98,27 @@ const shadow = {
 } as const;
 
 const styles = StyleSheet.create({
+  bottomBare: {
+    backgroundColor: 'transparent',
+  },
+  caption: {
+    flex: 1,
+    gap: 2,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  action: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  actionText: {
+    color: Colors.text,
+    fontSize: 10,
+    fontWeight: '600',
+    ...shadow,
+  },
   frame: {
     backgroundColor: Colors.surface,
     overflow: 'hidden',
@@ -105,12 +154,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     ...shadow,
   },
+  flex: {
+    flex: 1,
+  },
   bottom: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: Spacing.md,
     padding: Spacing.md,
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
