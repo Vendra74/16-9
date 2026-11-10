@@ -8,6 +8,7 @@ import { PeoplePicker } from '@/components/people-picker';
 import { PostCard } from '@/components/post-card';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { sendMessage, startConversation } from '@/lib/messages';
+import { like, unlike } from '@/lib/likes';
 import { askModeration } from '@/lib/moderation';
 import { fetchFeed, type FeedPost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
@@ -67,6 +68,33 @@ export default function FeedScreen() {
     }
   }
 
+  /** Curtida otimista: a claquete bate na hora e volta se o servidor recusar. */
+  function setLiked(postId: string, liked: boolean) {
+    setPosts((list) =>
+      list?.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              my_like: liked && me ? [{ user_id: me }] : [],
+              like_count: Math.max(0, p.like_count + (liked ? 1 : -1)),
+            }
+          : p,
+      ) ?? null,
+    );
+  }
+
+  async function toggleLike(post: FeedPost) {
+    if (!me) return;
+    const liked = post.my_like.length === 0;
+    setLiked(post.id, liked);
+    try {
+      if (liked) await like(post.id);
+      else await unlike(post.id, me);
+    } catch {
+      setLiked(post.id, !liked);
+    }
+  }
+
   function more(post: FeedPost) {
     const name = post.author?.display_name || post.author?.username || 'esta pessoa';
     askModeration({ id: post.user_id, name }, { postId: post.id }, load);
@@ -113,6 +141,8 @@ export default function FeedScreen() {
               width={frameW}
               height={frameH}
               isMine={item.user_id === me}
+              liked={item.my_like.length > 0}
+              onLike={() => toggleLike(item)}
               onMessage={() => messageAuthor(item)}
               onShare={() => setSharing(item)}
               onMore={() => more(item)}

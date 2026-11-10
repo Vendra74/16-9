@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
+import { ClapperButton } from '@/components/clapper-button';
 import { MessagesIcon, MoreIcon, SendIcon } from '@/components/rail-icons';
 import { Colors, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
@@ -18,12 +19,14 @@ type Props = {
   width: number;
   height: number;
   isMine: boolean;
+  liked: boolean;
+  onLike: () => void;
   onMessage: () => void;
   onShare: () => void;
   onMore: () => void;
 };
 
-export function PostCard({ post, width, height, isMine, onMessage, onShare, onMore }: Props) {
+export function PostCard({ post, width, height, isMine, liked, onLike, onMessage, onShare, onMore }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   const name = post.author?.display_name || post.author?.username || 'Alguém';
@@ -73,6 +76,7 @@ export function PostCard({ post, width, height, isMine, onMessage, onShare, onMo
               {gear ? <Text style={styles.gear}>{gear}</Text> : null}
             </View>
             <View style={styles.actions}>
+              <ClapperButton liked={liked} count={post.like_count} onToggle={onLike} size={24} />
               {!isMine ? (
                 <Pressable style={styles.action} onPress={onMessage} hitSlop={8} accessibilityLabel={`Mandar mensagem para ${name}`}>
                   <MessagesIcon color={Colors.text} size={24} />
