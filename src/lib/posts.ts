@@ -12,6 +12,7 @@ export type FeedPost = Gear & {
   location: string;
   created_at: string;
   like_count: number;
+  comment_count: number;
   /** Só traz a curtida de quem está logado (regra do banco): vazio = não curtiu. */
   my_like: { user_id: string }[];
   author: {
@@ -24,7 +25,7 @@ export type FeedPost = Gear & {
 
 const COLUMNS =
   'id, user_id, image_path, width, height, title, location, camera, lens, focal_length, aperture, shutter, iso, created_at, ' +
-  'like_count, my_like:likes(user_id), author:profiles!posts_user_id_fkey(username, display_name, specialty, avatar_url)';
+  'like_count, comment_count, my_like:likes(user_id), author:profiles!posts_user_id_fkey(username, display_name, specialty, avatar_url)';
 
 export function postImageUrl(post: Pick<FeedPost, 'image_path'>) {
   return publicUrl('posts', post.image_path);
