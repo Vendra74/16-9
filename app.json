@@ -42,6 +42,14 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 120
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O 16:9 abre suas fotos para você publicar trabalhos e escolher a foto de perfil.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {

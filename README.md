@@ -25,7 +25,7 @@ O app pede login antes de mostrar o feed. A conta é por e-mail e senha, e cada 
 Para ligar o backend:
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (região São Paulo).
-2. No **SQL Editor**, rode `supabase/migrations/20261109000000_profiles_feedback.sql`. Ele cria as tabelas `profiles` e `feedback` com as regras de acesso.
+2. No **SQL Editor**, rode os arquivos de `supabase/migrations/` em ordem, uma vez cada: o primeiro cria `profiles` e `feedback`; o segundo cria `posts`, a foto de perfil e os espaços de imagem (`posts` e `avatars`) no Storage.
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email** durante os testes. O e-mail embutido do Supabase só envia poucas mensagens por hora; para exigir confirmação, configure um SMTP próprio antes.
 4. A URL e a chave *publishable* ficam em `.env` (já preenchido com o projeto do 16:9). O EAS envia esse arquivo junto no build. Para apontar para outro projeto só na sua máquina, crie um `.env.local`, que tem prioridade.
 
@@ -60,5 +60,6 @@ npm run lint
 - `src/components/aperture.tsx`: o diafragma animado (abertura do app e indicador de carregamento).
 - `src/components/side-rail.tsx`: o trilho de navegação na lateral. A tela do iPhone deitado é mais larga que 16:9, então a sobra vira o menu e a imagem nunca é coberta.
 - `src/components/post-card.tsx`: um trabalho no feed, na moldura 16:9, com autor, ficha técnica, curtidas e comentários.
-- `src/data/mock-feed.ts`: feed de demonstração com perfis fictícios e fotos do Lorem Picsum, até o backend existir.
+- `src/components/crop-frame.tsx`: a moldura de enquadramento 16:9 da tela Publicar.
+- `src/lib/exif.ts`: transforma os dados EXIF da foto na ficha técnica (câmera, lente, focal, abertura, velocidade, ISO).
 - `src/constants/theme.ts`: cores e medidas da identidade visual.

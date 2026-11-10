@@ -7,6 +7,7 @@ export type Profile = {
   specialty: string;
   city: string;
   bio: string;
+  avatar_url: string | null;
 };
 
 export type ProfileChanges = Partial<Omit<Profile, 'id'>>;
@@ -27,7 +28,7 @@ export function normalizeUsername(value: string) {
 export async function fetchProfile(userId: string) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, specialty, city, bio')
+    .select('id, username, display_name, specialty, city, bio, avatar_url')
     .eq('id', userId)
     .single<Profile>();
   if (error) throw error;
