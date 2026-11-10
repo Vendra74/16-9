@@ -43,7 +43,7 @@ const CONVERSATION =
   `a:profiles!conversations_user_a_fkey(${PROFILE}), b:profiles!conversations_user_b_fkey(${PROFILE})`;
 const MESSAGE =
   'id, conversation_id, sender_id, body, post_id, created_at, ' +
-  'post:posts(id, image_path, title, author:profiles(username, display_name))';
+  'post:posts!messages_post_id_fkey(id, image_path, title, author:profiles!posts_user_id_fkey(username, display_name))';
 
 /** A outra pessoa da conversa. */
 export function otherPerson(c: Conversation, me: string) {
