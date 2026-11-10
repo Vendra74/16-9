@@ -5,7 +5,7 @@ import { blockUser, report } from '@/lib/messages';
 const REASONS = ['Spam', 'Conteúdo impróprio', 'Assédio ou ofensa', 'Outro motivo'];
 
 /** Pergunta o motivo e registra a denúncia. */
-export function askReport(target: { userId?: string; postId?: string; messageId?: string }) {
+export function askReport(target: { userId?: string; postId?: string; messageId?: string; commentId?: string }) {
   Alert.alert('Denunciar', 'Qual o problema? A equipe do 16:9 vai analisar.', [
     ...REASONS.map((reason) => ({
       text: reason,
@@ -48,7 +48,7 @@ export function askBlock(userId: string, name: string, onDone?: () => void) {
 /** Menu "…" de uma pessoa (no post ou na conversa): denunciar ou bloquear. */
 export function askModeration(
   person: { id: string; name: string },
-  target: { postId?: string; messageId?: string },
+  target: { postId?: string; messageId?: string; commentId?: string },
   onBlocked?: () => void,
 ) {
   Alert.alert(person.name, undefined, [

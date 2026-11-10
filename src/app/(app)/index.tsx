@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Alert, FlatList, RefreshControl, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { ApertureLoader } from '@/components/aperture';
+import { CommentsPanel } from '@/components/comments-panel';
 import { Button } from '@/components/form';
 import { PeoplePicker } from '@/components/people-picker';
 import { PostCard } from '@/components/post-card';
@@ -23,6 +24,7 @@ export default function FeedScreen() {
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [sharing, setSharing] = useState<FeedPost | null>(null);
+  const [commenting, setCommenting] = useState<FeedPost | null>(null);
   const { session } = useSession();
   const me = session?.user.id;
 
@@ -95,6 +97,12 @@ export default function FeedScreen() {
     }
   }
 
+  function bumpComments(postId: string, delta: number) {
+    setPosts((list) =>
+      list?.map((p) => (p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count + delta) } : p)) ?? null,
+    );
+  }
+
   function more(post: FeedPost) {
     const name = post.author?.display_name || post.author?.username || 'esta pessoa';
     askModeration({ id: post.user_id, name }, { postId: post.id }, load);
@@ -143,6 +151,7 @@ export default function FeedScreen() {
               isMine={item.user_id === me}
               liked={item.my_like.length > 0}
               onLike={() => toggleLike(item)}
+              onComment={() => setCommenting(item)}
               onMessage={() => messageAuthor(item)}
               onShare={() => setSharing(item)}
               onMore={() => more(item)}
@@ -156,6 +165,11 @@ export default function FeedScreen() {
   return (
     <View style={styles.container} onLayout={onLayout}>
       {content}
+      <CommentsPanel
+        post={commenting}
+        onClose={() => setCommenting(null)}
+        onCountChange={(delta) => commenting && bumpComments(commenting.id, delta)}
+      />
       <PeoplePicker
         visible={sharing !== null}
         title="Enviar para…"

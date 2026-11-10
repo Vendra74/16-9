@@ -141,11 +141,12 @@ export async function blockUser(userId: string) {
   if (error && error.code !== '23505') throw error;
 }
 
-export async function report(target: { userId?: string; postId?: string; messageId?: string }, reason: string) {
+export async function report(target: { userId?: string; postId?: string; messageId?: string; commentId?: string }, reason: string) {
   const { error } = await supabase.from('reports').insert({
     reported_user: target.userId ?? null,
     post_id: target.postId ?? null,
     message_id: target.messageId ?? null,
+    ...(target.commentId ? { comment_id: target.commentId } : {}),
     reason,
   });
   if (error) throw error;
