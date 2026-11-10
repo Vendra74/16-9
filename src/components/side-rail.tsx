@@ -10,15 +10,20 @@ type RailButtonProps = Omit<TabTriggerSlotProps, 'ref'> & {
   /** Rota da aba, para destacar a aba atual. */
   route: string;
   Icon: ComponentType<{ color: string }>;
+  /** Mostra um ponto de aviso (ex.: mensagem nova). */
+  badge?: boolean;
 };
 
 /** Botão do trilho lateral. Usar dentro de `<TabTrigger asChild>`. */
-export function RailButton({ label, route, Icon, isFocused: _isFocused, ...props }: RailButtonProps) {
+export function RailButton({ label, route, Icon, badge, isFocused: _isFocused, ...props }: RailButtonProps) {
   const pathname = usePathname();
   const color = pathname === route ? Colors.text : Colors.textMuted;
   return (
-    <Pressable {...props} accessibilityLabel={label} style={styles.button}>
-      <Icon color={color} />
+    <Pressable {...props} accessibilityLabel={badge ? `${label}, há novidades` : label} style={styles.button}>
+      <View>
+        <Icon color={color} />
+        {badge ? <View style={styles.badge} /> : null}
+      </View>
       <Text style={[styles.label, { color }]}>{label}</Text>
     </Pressable>
   );
@@ -55,8 +60,8 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
     backgroundColor: Colors.background,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: Colors.border,
@@ -71,6 +76,17 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
     letterSpacing: 0.4,
+  },
+  badge: {
+    position: 'absolute',
+    top: -1,
+    right: -3,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#FF5A4F',
+    borderWidth: 1.5,
+    borderColor: Colors.background,
   },
   spacer: {
     flex: 1,

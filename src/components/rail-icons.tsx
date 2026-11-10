@@ -38,3 +38,35 @@ export function ProfileIcon({ color, size = 26 }: IconProps) {
     </Svg>
   );
 }
+
+export function MessagesIcon({ color, size = 26 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 17.5V6.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** Enviar: um avião de papel. */
+export function SendIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M21 3 10 14M21 3l-7 18-4-7-7-4 18-7Z" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function MoreIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Circle cx={5} cy={12} r={1.8} />
+      <Circle cx={12} cy={12} r={1.8} />
+      <Circle cx={19} cy={12} r={1.8} />
+    </Svg>
+  );
+}

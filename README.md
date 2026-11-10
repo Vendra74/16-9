@@ -25,11 +25,11 @@ O app pede login antes de mostrar o feed. A conta é por e-mail e senha, e cada 
 Para ligar o backend:
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (região São Paulo).
-2. No **SQL Editor**, rode os arquivos de `supabase/migrations/` em ordem, uma vez cada: o primeiro cria `profiles` e `feedback`; o segundo cria `posts`, a foto de perfil e os espaços de imagem (`posts` e `avatars`) no Storage.
+2. No **SQL Editor**, rode os arquivos de `supabase/migrations/` em ordem, uma vez cada: o primeiro cria `profiles` e `feedback`; o segundo cria `posts`, a foto de perfil e os espaços de imagem (`posts` e `avatars`) no Storage; o terceiro cria mensagens diretas, bloqueio e denúncia.
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email** durante os testes. O e-mail embutido do Supabase só envia poucas mensagens por hora; para exigir confirmação, configure um SMTP próprio antes.
 4. A URL e a chave *publishable* ficam em `.env` (já preenchido com o projeto do 16:9). O EAS envia esse arquivo junto no build. Para apontar para outro projeto só na sua máquina, crie um `.env.local`, que tem prioridade.
 
-O feedback dos testers aparece em **Table Editor > feedback**. Para trocar a senha de alguém, use **Authentication > Users**.
+O feedback dos testers aparece em **Table Editor > feedback**, e as denúncias em **Table Editor > reports**. Para trocar a senha de alguém, use **Authentication > Users**.
 
 ## Distribuindo para testers (TestFlight)
 
