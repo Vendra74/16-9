@@ -21,14 +21,29 @@ async function readBytes(uri: string) {
   return new File(uri).arrayBuffer();
 }
 
-/** Envia um JPEG para `<bucket>/<id do usuário>/<nome>.jpg` e devolve o caminho. */
-export async function uploadJpeg(bucket: 'posts' | 'avatars', userId: string, uri: string) {
+/** Envia um JPEG para `<bucket>/<pasta>/<nome>.jpg` e devolve o caminho. */
+export async function uploadJpeg(bucket: 'posts' | 'avatars' | 'messages', folder: string, uri: string) {
   const random = Math.random().toString(36).slice(2, 10);
-  const path = `${userId}/${Date.now()}-${random}.jpg`;
+  const path = `${folder}/${Date.now()}-${random}.jpg`;
   const body = await readBytes(uri);
   const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: 'image/jpeg' });
   if (error) throw error;
   return path;
+}
+
+/** Endereços temporários das imagens das conversas (bucket privado), guardados enquanto valem. */
+const signed = new Map<string, { url: string; expires: number }>();
+const SIGNED_SECONDS = 3600;
+
+/** Endereço temporário para abrir uma imagem de conversa. Só funciona para quem está nela. */
+export async function messageImageUrl(path: string) {
+  const cached = signed.get(path);
+  // Renova com folga, para a imagem não expirar no meio do uso.
+  if (cached && cached.expires - Date.now() > 5 * 60e3) return cached.url;
+  const { data, error } = await supabase.storage.from('messages').createSignedUrl(path, SIGNED_SECONDS);
+  if (error) throw error;
+  signed.set(path, { url: data.signedUrl, expires: Date.now() + SIGNED_SECONDS * 1000 });
+  return data.signedUrl;
 }
 
 export function publicUrl(bucket: 'posts' | 'avatars', path: string) {
