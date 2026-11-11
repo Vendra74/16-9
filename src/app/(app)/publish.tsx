@@ -2,7 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useRef, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
@@ -34,42 +34,65 @@ export default function PublishScreen() {
   const [location, setLocation] = useState('');
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
   const crop = useRef<CropRect | null>(null);
   const onCropChange = useCallback((rect: CropRect) => {
     crop.current = rect;
   }, []);
 
+  /** Recusa a escolha: o motivo fica na tela e também num aviso, para não passar despercebido. */
+  function refuse(title: string, message: string) {
+    setError(message);
+    // Espera o seletor terminar de fechar; antes disso o iOS não mostra o aviso.
+    setTimeout(() => Alert.alert(title, message), 500);
+  }
+
   async function pick() {
     setError(null);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      exif: true,
-      quality: 1,
-      videoMaxDuration: MAX_VIDEO_SECONDS,
-      // Converte para 1080p antes de enviar: um minuto em 4K passaria de 300 MB.
-      videoExportPreset: ImagePicker.VideoExportPreset.H264_1920x1080,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    let { width, height } = asset;
-    // No web o seletor às vezes não informa o tamanho.
-    if (!width || !height) ({ width, height } = await Image.getSize(asset.uri));
-    if (asset.type === 'video') {
-      // O seletor informa a duração em milissegundos.
-      if ((asset.duration ?? 0) > (MAX_VIDEO_SECONDS + 0.5) * 1000) {
-        setError(`O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Corte no app Fotos e escolha de novo.`);
+    // Depois de escolher um vídeo, o iPhone ainda o converte para 1080p antes de devolver.
+    // Isso leva alguns segundos, e a tela mostra que está trabalhando.
+    setOpening(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        exif: true,
+        quality: 1,
+        videoMaxDuration: MAX_VIDEO_SECONDS,
+        // Converte para 1080p antes de enviar: um minuto em 4K passaria de 300 MB.
+        videoExportPreset: ImagePicker.VideoExportPreset.H264_1920x1080,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      let { width, height } = asset;
+      // No web o seletor às vezes não informa o tamanho.
+      if (!width || !height) ({ width, height } = await Image.getSize(asset.uri));
+      if (asset.type === 'video') {
+        // O seletor informa a duração em milissegundos.
+        if ((asset.duration ?? 0) > (MAX_VIDEO_SECONDS + 0.5) * 1000) {
+          refuse(
+            'Vídeo longo demais',
+            `O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Corte no app Fotos e escolha de novo.`,
+          );
+          return;
+        }
+        if (width && height && height > width) {
+          refuse(
+            'Vídeo na vertical',
+            'No 16:9 só entra vídeo na horizontal. Escolha um vídeo gravado com o celular deitado.',
+          );
+          return;
+        }
+        setPicked({ kind: 'video', uri: asset.uri, width, height });
+        setGear(EMPTY_GEAR);
         return;
       }
-      if (width && height && height > width) {
-        setError('No 16:9 só entra vídeo na horizontal. Escolha um vídeo gravado com o celular deitado.');
-        return;
-      }
-      setPicked({ kind: 'video', uri: asset.uri, width, height });
-      setGear(EMPTY_GEAR);
-      return;
+      setPicked({ kind: 'photo', uri: asset.uri, width, height });
+      setGear(gearFromExif(asset.exif));
+    } catch {
+      setError('Não foi possível abrir esse arquivo. Tente escolher de novo.');
+    } finally {
+      setOpening(false);
     }
-    setPicked({ kind: 'photo', uri: asset.uri, width, height });
-    setGear(gearFromExif(asset.exif));
   }
 
   function reset() {
@@ -134,7 +157,14 @@ export default function PublishScreen() {
           técnica (câmera, lente, abertura, velocidade e ISO) é preenchida a partir dela.
         </Text>
         <FormMessage text={error} />
-        <Button title="Escolher foto ou vídeo" onPress={pick} />
+        {opening ? (
+          <View style={styles.busy}>
+            <ApertureLoader size={28} />
+            <Text style={styles.text}>Preparando… Vídeos levam alguns segundos.</Text>
+          </View>
+        ) : (
+          <Button title="Escolher foto ou vídeo" onPress={pick} />
+        )}
       </View>
     );
   }
@@ -163,7 +193,7 @@ export default function PublishScreen() {
           />
         )}
         <View style={styles.previewActions}>
-          <Button variant="ghost" title="Trocar" onPress={pick} disabled={busy} />
+          <Button variant="ghost" title={opening ? 'Preparando…' : 'Trocar'} onPress={pick} disabled={busy || opening} />
           <Button variant="ghost" title="Cancelar" onPress={reset} disabled={busy} />
         </View>
       </View>
