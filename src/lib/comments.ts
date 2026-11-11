@@ -1,4 +1,5 @@
 import type { MiniProfile } from '@/lib/messages';
+import { notify } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 
 export type Comment = {
@@ -37,6 +38,7 @@ export async function addComment(postId: string, body: string) {
     .single()
     .overrideTypes<Comment, { merge: false }>();
   if (error) throw error;
+  notify({ kind: 'comment', id: data.id });
   return data;
 }
 

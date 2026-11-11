@@ -1,3 +1,4 @@
+import { notify } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 
 export type MiniProfile = {
@@ -120,6 +121,7 @@ export async function sendMessage(conversationId: string, body: string, postId?:
     .single()
     .overrideTypes<Message, { merge: false }>();
   if (error) throw error;
+  notify({ kind: 'message', id: data.id });
   return data;
 }
 

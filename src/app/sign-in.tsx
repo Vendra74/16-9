@@ -1,6 +1,6 @@
 import type { AuthError } from '@supabase/supabase-js';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
 import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,7 +10,8 @@ import { Colors, Spacing } from '@/constants/theme';
 import { isUsernameAvailable, normalizeUsername, USERNAME_PATTERN } from '@/lib/profile';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
 
-type Mode = 'sign-in' | 'sign-up';
+/** 'forgot' pede o e-mail; 'reset' recebe o código enviado e a senha nova. */
+type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
 type InputRef = ComponentRef<typeof TextInput>;
 
 /** Mensagens do Supabase Auth traduzidas para quem está testando o app. */
@@ -30,6 +31,10 @@ function authMessage(error: AuthError) {
     case 'over_email_send_rate_limit':
     case 'over_request_rate_limit':
       return 'Muitas tentativas seguidas. Espere alguns minutos.';
+    case 'otp_expired':
+      return 'Código incorreto ou vencido. Confira o e-mail ou peça um código novo.';
+    case 'same_password':
+      return 'A senha nova precisa ser diferente da anterior.';
     case 'signup_disabled':
       return 'Cadastros fechados no momento.';
     default:
@@ -44,6 +49,7 @@ export default function SignInScreen() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -61,10 +67,62 @@ export default function SignInScreen() {
     rotation.value = withTiming(mode === 'sign-up' ? Math.PI / 3 : Math.PI / 10, { duration: 600, easing: ease });
   }, [mode, opening, rotation]);
 
-  function switchMode() {
-    setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in');
+  function go(next: Mode) {
+    setMode(next);
     setError(null);
     setInfo(null);
+  }
+
+  function switchMode() {
+    go(mode === 'sign-in' ? 'sign-up' : 'sign-in');
+  }
+
+  /** Esqueci a senha, passo 1: manda um código para o e-mail. */
+  async function sendCode() {
+    setError(null);
+    setInfo(null);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return setError('Digite o e-mail da sua conta.');
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+      if (error) return setError(authMessage(error));
+      setCode('');
+      setPassword('');
+      setMode('reset');
+      // Por segurança o servidor não diz se o e-mail existe; a mensagem é a mesma nos dois casos.
+      setInfo(`Se existe uma conta com ${cleanEmail}, o código chega em instantes. Olhe também o spam.`);
+    } catch {
+      setError('Sem conexão com o servidor. Confira a internet e tente de novo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Esqueci a senha, passo 2: confere o código e grava a senha nova. */
+  async function resetPassword() {
+    setError(null);
+    setInfo(null);
+    const token = code.replace(/\D/g, '');
+    if (token.length < 6) return setError('Digite o código que chegou no seu e-mail.');
+    if (password.length < 8) return setError('Use pelo menos 8 caracteres na senha nova.');
+    setBusy(true);
+    try {
+      const verified = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: 'recovery' });
+      if (verified.error) return setError(authMessage(verified.error));
+      // O código já abre a sessão, e o app entra sozinho. A senha é gravada em seguida.
+      const updated = await supabase.auth.updateUser({ password });
+      if (updated.error) {
+        Alert.alert(
+          'Você entrou, mas a senha não foi trocada',
+          `${authMessage(updated.error)} Saia pelo Perfil e use "Esqueci minha senha" de novo.`,
+        );
+      }
+    } catch {
+      setError('Sem conexão com o servidor. Confira a internet e tente de novo.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submit() {
@@ -111,6 +169,8 @@ export default function SignInScreen() {
   }
 
   const signingUp = mode === 'sign-up';
+  const recovering = mode === 'forgot' || mode === 'reset';
+  const title = { 'sign-in': 'Entrar', 'sign-up': 'Criar conta', forgot: 'Esqueci minha senha', reset: 'Nova senha' }[mode];
 
   return (
     <View style={[styles.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
@@ -129,7 +189,10 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets>
-        <Text style={styles.title}>{signingUp ? 'Criar conta' : 'Entrar'}</Text>
+        <Text style={styles.title}>{title}</Text>
+        {mode === 'forgot' ? (
+          <Text style={styles.help}>Digite o e-mail da sua conta. Enviamos um código para você criar uma senha nova.</Text>
+        ) : null}
 
         {!supabaseConfigured ? (
           <FormMessage text="Servidor não configurado: falta EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_KEY (veja o README)." />
@@ -163,6 +226,20 @@ export default function SignInScreen() {
           </>
         ) : null}
 
+        {mode === 'reset' ? (
+          <Field
+            label="Código"
+            placeholder="Código que chegou no e-mail"
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+            autoComplete="one-time-code"
+            textContentType="oneTimeCode"
+            maxLength={10}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+        ) : (
         <Field
           ref={emailRef}
           label="E-mail"
@@ -174,40 +251,56 @@ export default function SignInScreen() {
           keyboardType="email-address"
           autoComplete="email"
           textContentType="emailAddress"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
+          returnKeyType={mode === 'forgot' ? 'send' : 'next'}
+          onSubmitEditing={mode === 'forgot' ? sendCode : () => passwordRef.current?.focus()}
         />
+        )}
+        {mode === 'forgot' ? null : (
         <Field
           ref={passwordRef}
-          label="Senha"
-          placeholder={signingUp ? 'Mínimo de 8 caracteres' : 'Sua senha'}
+          label={mode === 'reset' ? 'Senha nova' : 'Senha'}
+          placeholder={signingUp || mode === 'reset' ? 'Mínimo de 8 caracteres' : 'Sua senha'}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
           autoCapitalize="none"
-          autoComplete={signingUp ? 'new-password' : 'current-password'}
-          textContentType={signingUp ? 'newPassword' : 'password'}
+          autoComplete={signingUp || mode === 'reset' ? 'new-password' : 'current-password'}
+          textContentType={signingUp || mode === 'reset' ? 'newPassword' : 'password'}
           returnKeyType="go"
-          onSubmitEditing={submit}
+          onSubmitEditing={mode === 'reset' ? resetPassword : submit}
         />
+        )}
 
         <FormMessage text={error} />
         <FormMessage text={info} tone="info" />
 
-        <Button
-          title={signingUp ? 'Criar conta' : 'Entrar'}
-          onPress={submit}
-          loading={busy}
-          disabled={!supabaseConfigured}
-        />
-        <Button
-          variant="ghost"
-          title={signingUp ? 'Já tenho conta' : 'Ainda não tenho conta'}
-          onPress={switchMode}
-        />
-        {!signingUp ? (
-          <Text style={styles.help}>Esqueceu a senha? Fale com a equipe do 16:9 que a gente libera uma nova.</Text>
-        ) : null}
+{recovering ? (
+          <>
+            <Button
+              title={mode === 'forgot' ? 'Enviar código' : 'Trocar senha e entrar'}
+              onPress={mode === 'forgot' ? sendCode : resetPassword}
+              loading={busy}
+              disabled={!supabaseConfigured}
+            />
+            {mode === 'reset' ? <Button variant="ghost" title="Enviar outro código" onPress={sendCode} disabled={busy} /> : null}
+            <Button variant="ghost" title="Voltar para entrar" onPress={() => go('sign-in')} />
+          </>
+        ) : (
+          <>
+            <Button
+              title={signingUp ? 'Criar conta' : 'Entrar'}
+              onPress={submit}
+              loading={busy}
+              disabled={!supabaseConfigured}
+            />
+            <Button
+              variant="ghost"
+              title={signingUp ? 'Já tenho conta' : 'Ainda não tenho conta'}
+              onPress={switchMode}
+            />
+            {!signingUp ? <Button variant="ghost" title="Esqueci minha senha" onPress={() => go('forgot')} /> : null}
+          </>
+        )}
       </ScrollView>
     </View>
   );
