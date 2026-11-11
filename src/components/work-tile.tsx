@@ -39,6 +39,8 @@ export function WorkTile({ post, width, showAuthor, onPress, onLongPress }: Prop
           <Text style={styles.tag}>
             {post.status === 'processing' ? 'Processando…' : post.status === 'failed' ? 'Falhou' : 'Vídeo'}
           </Text>
+        ) : post.extra_images?.length ? (
+          <Text style={styles.tag}>{post.extra_images.length + 1} fotos</Text>
         ) : null}
       </View>
       {showAuthor ? (

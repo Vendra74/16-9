@@ -237,6 +237,8 @@ function MyWorks({ userId }: { userId: string }) {
               <Text style={styles.tileTag}>
                 {post.status === 'processing' ? 'Processando…' : post.status === 'failed' ? 'Falhou' : 'Vídeo'}
               </Text>
+            ) : post.extra_images?.length ? (
+              <Text style={styles.tileTag}>{post.extra_images.length + 1} fotos</Text>
             ) : null}
             <Text style={styles.tileTitle} numberOfLines={1}>
               {post.title || post.location || settingsLine(post) || ' '}
