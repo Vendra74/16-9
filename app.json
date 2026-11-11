@@ -46,7 +46,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "O 16:9 abre suas fotos para você publicar trabalhos e escolher a foto de perfil.",
+          "photosPermission": "O 16:9 abre suas fotos e vídeos para você publicar trabalhos e escolher a foto de perfil.",
           "cameraPermission": false,
           "microphonePermission": false
         }

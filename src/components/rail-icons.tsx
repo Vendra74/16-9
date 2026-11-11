@@ -76,6 +76,20 @@ export function CommentIcon({ color, size = 22 }: IconProps) {
   );
 }
 
+/** Alto-falante: com ondas (som ligado) ou com um X (mudo). */
+export function SoundIcon({ color, size = 22, muted = false }: IconProps & { muted?: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4v-5Z" stroke={color} strokeWidth={1.8} strokeLinejoin="round" />
+      {muted ? (
+        <Path d="m16 9.5 5 5m0-5-5 5" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+      ) : (
+        <Path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+      )}
+    </Svg>
+  );
+}
+
 export function MoreIcon({ color, size = 22 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
