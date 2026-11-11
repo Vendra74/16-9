@@ -35,6 +35,14 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-android-landscape",
+      [
+        "expo-navigation-bar",
+        {
+          "hidden": true,
+          "style": "light"
+        }
+      ],
       [
         "expo-splash-screen",
         {

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -210,7 +209,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   const name = person?.display_name || person?.username || 'Alguém';
 
   return (
-    <KeyboardAvoidingView style={styles.chatInner} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.chatInner} behavior="padding">
       <View style={styles.chatHeader}>
         <Avatar name={name} url={person?.avatar_url} size={32} />
         <View style={styles.flex}>
