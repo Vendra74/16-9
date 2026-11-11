@@ -21,6 +21,7 @@ import {
   USERNAME_PATTERN,
   type Profile,
 } from '@/lib/profile';
+import { unregisterFromPush } from '@/lib/push';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -134,7 +135,10 @@ export default function ProfileScreen() {
             title="Enviar feedback"
             onPress={() => setPanel(panel === 'feedback' ? 'works' : 'feedback')}
           />
-          <Button variant="ghost" title="Sair" onPress={() => supabase.auth.signOut()} />
+          <Button variant="ghost" title="Sair" onPress={async () => {
+              await unregisterFromPush();
+              await supabase.auth.signOut();
+            }} />
         </View>
         <Text style={styles.account}>{session?.user.email}</Text>
       </ScrollView>
