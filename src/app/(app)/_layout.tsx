@@ -22,6 +22,7 @@ export default function AppLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="user/[id]" />
         <Stack.Screen name="viewer" />
+        <Stack.Screen name="record" options={{ animation: 'fade' }} />
       </Stack>
     </InboxProvider>
   );

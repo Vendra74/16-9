@@ -1,8 +1,8 @@
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
@@ -14,13 +14,28 @@ import { EMPTY_GEAR, gearFromExif, type Gear } from '@/lib/exif';
 import { cropAndResize, uploadJpeg, type CropRect } from '@/lib/images';
 import { createPost, deletePost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
-import { makePoster, MAX_VIDEO_SECONDS, requestUpload, uploadVideo } from '@/lib/video';
+import {
+  DEFAULT_COVER_SECONDS,
+  makePoster,
+  MAX_VIDEO_SECONDS,
+  requestUpload,
+  takeRecordedVideo,
+  uploadVideo,
+} from '@/lib/video';
 
 type Picked = { kind: 'photo' | 'video'; uri: string; width: number; height: number };
 
 /** Largura máxima do arquivo publicado (16:9 → 2048×1152). */
 const MAX_WIDTH = 2048;
 const FORM_WIDTH = 300;
+/** O corte usa o editor de vídeo do iPhone; gravar precisa da câmera do aparelho. */
+const CAN_TRIM = Platform.OS === 'ios';
+const CAN_RECORD = Platform.OS !== 'web';
+
+function clock(seconds: number) {
+  const s = Math.floor(seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 export default function PublishScreen() {
   const { session } = useSession();
@@ -35,26 +50,59 @@ export default function PublishScreen() {
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  /** Instante do vídeo que vira a capa. */
+  const [cover, setCover] = useState(DEFAULT_COVER_SECONDS);
   const crop = useRef<CropRect | null>(null);
   const onCropChange = useCallback((rect: CropRect) => {
     crop.current = rect;
   }, []);
 
+  // Voltando da tela de gravação, o vídeo gravado entra como se tivesse sido escolhido.
+  useFocusEffect(
+    useCallback(() => {
+      const uri = takeRecordedVideo();
+      if (!uri) return;
+      // A gravação do app já sai na horizontal, em 1080p e com até 1 minuto.
+      setPicked({ kind: 'video', uri, width: 1920, height: 1080 });
+      setGear(EMPTY_GEAR);
+      setCover(DEFAULT_COVER_SECONDS);
+      setError(null);
+    }, []),
+  );
+
   /** Recusa a escolha: o motivo fica na tela e também num aviso, para não passar despercebido. */
-  function refuse(title: string, message: string) {
+  function refuse(title: string, message: string, offerTrim = false) {
     setError(message);
     // Espera o seletor terminar de fechar; antes disso o iOS não mostra o aviso.
-    setTimeout(() => Alert.alert(title, message), 500);
+    setTimeout(
+      () =>
+        Alert.alert(
+          title,
+          message,
+          offerTrim
+            ? [
+                { text: 'Agora não', style: 'cancel' },
+                { text: 'Cortar um trecho', onPress: () => pick(true) },
+              ]
+            : undefined,
+        ),
+      500,
+    );
   }
 
-  async function pick() {
+  /**
+   * Abre a galeria. Com `trim`, abre só os vídeos e passa pelo editor do
+   * iPhone, onde a pessoa arrasta as alças para escolher um trecho de até 1 minuto.
+   */
+  async function pick(trim = false) {
     setError(null);
     // Depois de escolher um vídeo, o iPhone ainda o converte para 1080p antes de devolver.
     // Isso leva alguns segundos, e a tela mostra que está trabalhando.
     setOpening(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images', 'videos'],
+        mediaTypes: trim ? ['videos'] : ['images', 'videos'],
+        allowsEditing: trim,
         exif: true,
         quality: 1,
         videoMaxDuration: MAX_VIDEO_SECONDS,
@@ -69,10 +117,15 @@ export default function PublishScreen() {
       if (asset.type === 'video') {
         // O seletor informa a duração em milissegundos.
         if ((asset.duration ?? 0) > (MAX_VIDEO_SECONDS + 0.5) * 1000) {
-          refuse(
-            'Vídeo longo demais',
-            `O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Corte no app Fotos e escolha de novo.`,
-          );
+          if (CAN_TRIM && !trim) {
+            refuse(
+              'Vídeo longo demais',
+              `O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Quer escolher um trecho dele? Você seleciona o vídeo de novo e arrasta as alças amarelas.`,
+              true,
+            );
+          } else {
+            refuse('Vídeo longo demais', `O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Corte um trecho menor e tente de novo.`);
+          }
           return;
         }
         if (width && height && height > width) {
@@ -84,6 +137,7 @@ export default function PublishScreen() {
         }
         setPicked({ kind: 'video', uri: asset.uri, width, height });
         setGear(EMPTY_GEAR);
+        setCover(DEFAULT_COVER_SECONDS);
         return;
       }
       setPicked({ kind: 'photo', uri: asset.uri, width, height });
@@ -110,7 +164,7 @@ export default function PublishScreen() {
       const video = picked.kind === 'video';
       setStep(video ? 'Preparando a capa…' : 'Preparando a imagem…');
       const image = video
-        ? await makePoster(picked.uri, MAX_WIDTH)
+        ? await makePoster(picked.uri, MAX_WIDTH, cover)
         : await cropAndResize(picked.uri, crop.current, MAX_WIDTH);
       setStep('Enviando…');
       const path = await uploadJpeg('posts', session.user.id, image.uri);
@@ -153,8 +207,8 @@ export default function PublishScreen() {
       <View style={styles.center}>
         <Text style={styles.title}>Publicar</Text>
         <Text style={styles.text}>
-          Escolha uma foto ou um vídeo de até 1 minuto, na horizontal. A foto você enquadra em 16:9, e a ficha
-          técnica (câmera, lente, abertura, velocidade e ISO) é preenchida a partir dela.
+          Escolha uma foto ou um vídeo de até 1 minuto, na horizontal{CAN_RECORD ? ', ou grave na hora' : ''}. A foto
+          você enquadra em 16:9, e a ficha técnica (câmera, lente, abertura, velocidade e ISO) é preenchida a partir dela.
         </Text>
         <FormMessage text={error} />
         {opening ? (
@@ -163,7 +217,13 @@ export default function PublishScreen() {
             <Text style={styles.text}>Preparando… Vídeos levam alguns segundos.</Text>
           </View>
         ) : (
-          <Button title="Escolher foto ou vídeo" onPress={pick} />
+          <>
+            <View style={styles.choices}>
+              <Button title="Escolher foto ou vídeo" onPress={() => pick()} />
+              {CAN_RECORD ? <Button title="Gravar um vídeo" onPress={() => router.push('/record')} /> : null}
+            </View>
+            {CAN_TRIM ? <Button variant="ghost" title="Cortar um trecho de um vídeo longo" onPress={() => pick(true)} /> : null}
+          </>
         )}
       </View>
     );
@@ -181,7 +241,7 @@ export default function PublishScreen() {
     <View style={[styles.screen, { paddingRight: insets.right }]}>
       <View style={styles.preview}>
         {frameWidth <= 0 ? null : picked.kind === 'video' ? (
-          <VideoPreview key={picked.uri} uri={picked.uri} width={frameWidth} />
+          <VideoPreview key={picked.uri} uri={picked.uri} width={frameWidth} cover={cover} onCover={setCover} disabled={busy} />
         ) : (
           <CropFrame
             key={picked.uri}
@@ -193,7 +253,7 @@ export default function PublishScreen() {
           />
         )}
         <View style={styles.previewActions}>
-          <Button variant="ghost" title={opening ? 'Preparando…' : 'Trocar'} onPress={pick} disabled={busy || opening} />
+          <Button variant="ghost" title={opening ? 'Preparando…' : 'Trocar'} onPress={() => pick()} disabled={busy || opening} />
           <Button variant="ghost" title="Cancelar" onPress={reset} disabled={busy} />
         </View>
       </View>
@@ -241,22 +301,76 @@ export default function PublishScreen() {
   );
 }
 
-/** Como o vídeo vai aparecer no feed: preenchendo a moldura 16:9. */
-function VideoPreview({ uri, width }: { uri: string; width: number }) {
+/**
+ * Como o vídeo vai aparecer no feed: preenchendo a moldura 16:9.
+ * A pessoa para o vídeo no quadro que quiser e o marca como capa.
+ */
+function VideoPreview({
+  uri,
+  width,
+  cover,
+  onCover,
+  disabled,
+}: {
+  uri: string;
+  width: number;
+  cover: number;
+  onCover: (seconds: number) => void;
+  disabled: boolean;
+}) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
   });
+  const chosen = cover !== DEFAULT_COVER_SECONDS;
   return (
-    <VideoView
-      player={player}
-      style={{ width, height: width / FrameRatio, backgroundColor: Colors.surface }}
-      contentFit="cover"
-      nativeControls
-    />
+    <View>
+      <VideoView
+        player={player}
+        style={{ width, height: width / FrameRatio, backgroundColor: Colors.surface }}
+        contentFit="cover"
+        nativeControls
+      />
+      <Pressable
+        style={[styles.coverButton, disabled && styles.dimmed]}
+        disabled={disabled}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel="Usar este quadro como capa"
+        onPress={() => {
+          // Para no quadro escolhido, para a pessoa ver o que virou capa.
+          player.pause();
+          onCover(Math.max(0, player.currentTime));
+        }}>
+        <Text style={styles.coverText}>
+          {chosen ? `Capa em ${clock(cover)} · trocar para este quadro` : 'Usar este quadro como capa'}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  choices: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  coverButton: {
+    position: 'absolute',
+    top: Spacing.sm,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  coverText: {
+    color: Colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dimmed: {
+    opacity: 0.4,
+  },
   center: {
     flex: 1,
     alignItems: 'center',
