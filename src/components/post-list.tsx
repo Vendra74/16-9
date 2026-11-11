@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, RefreshControl, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { CommentsPanel } from '@/components/comments-panel';
+import { LikersPanel } from '@/components/likers-panel';
 import { PeoplePicker } from '@/components/people-picker';
 import { PostCard } from '@/components/post-card';
 import { Colors, FrameRatio } from '@/constants/theme';
@@ -38,6 +39,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
   const [refreshing, setRefreshing] = useState(false);
   const [sharing, setSharing] = useState<FeedPost | null>(null);
   const [commenting, setCommenting] = useState<FeedPost | null>(null);
+  const [likers, setLikers] = useState<FeedPost | null>(null);
   const [focused, setFocused] = useState(false);
   const [visibleId, setVisibleId] = useState<string | null>(null);
   // O som vale para a sequência toda: ligou num vídeo, os próximos já tocam com som.
@@ -177,6 +179,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
                 onToggleSound={() => setMuted((m) => !m)}
                 liked={item.my_like.length > 0}
                 onLike={() => toggleLike(item)}
+                onLikers={() => setLikers(item)}
                 onAuthor={() => openAuthor(item)}
                 onComment={() => setCommenting(item)}
                 onMessage={() => messageAuthor(item)}
@@ -192,6 +195,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
         onClose={() => setCommenting(null)}
         onCountChange={(delta) => commenting && bumpComments(commenting.id, delta)}
       />
+      <LikersPanel post={likers} onClose={() => setLikers(null)} />
       <PeoplePicker
         visible={sharing !== null}
         title="Enviar para…"

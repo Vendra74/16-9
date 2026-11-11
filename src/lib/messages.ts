@@ -184,6 +184,39 @@ export async function sendMedia(conversationId: string, me: string, media: Media
   return data;
 }
 
+/** Apaga uma mensagem sua, para as duas pessoas. */
+export async function deleteMessage(message: Pick<Message, 'id' | 'kind' | 'image_path'>) {
+  // O vídeo sai do Mux primeiro; se falhar, a mensagem continua e dá para tentar de novo.
+  if (message.kind === 'video') {
+    const { error } = await supabase.functions.invoke('video', { body: { action: 'delete', message_id: message.id } });
+    if (error) throw error;
+  }
+  const { error } = await supabase.from('messages').delete().eq('id', message.id);
+  if (error) throw error;
+  // A imagem sai depois; se falhar, só fica um arquivo órfão no Storage.
+  if (message.image_path) await supabase.storage.from('messages').remove([message.image_path]);
+}
+
+/** As pessoas que você bloqueou, da mais recente à mais antiga. */
+export async function fetchBlocked() {
+  const { data: blocks, error } = await supabase
+    .from('blocks')
+    .select('blocked, created_at')
+    .order('created_at', { ascending: false })
+    .overrideTypes<{ blocked: string }[], { merge: false }>();
+  if (error) throw error;
+  if (blocks.length === 0) return [];
+  // Em dois passos, de propósito: blocks aponta duas vezes para profiles.
+  const ids = blocks.map((b) => b.blocked);
+  const { data: people, error: peopleError } = await supabase
+    .from('profiles')
+    .select(PROFILE)
+    .in('id', ids)
+    .overrideTypes<MiniProfile[], { merge: false }>();
+  if (peopleError) throw peopleError;
+  return ids.map((id) => people.find((p) => p.id === id)).filter((p): p is MiniProfile => Boolean(p));
+}
+
 export async function markRead(conversationId: string) {
   await supabase.rpc('mark_conversation_read', { conv: conversationId });
 }

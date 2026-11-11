@@ -70,4 +70,7 @@ assert.equal(messages[0].status,'failed'); assert.ok(calls.includes('DELETE api.
 reset(); await hook({type:'video.asset.ready', data:{id:'asM3', upload_id:'upM', passthrough:'22222222-2222-2222-2222-222222222222', duration:10, aspect_ratio:'16:9', playback_ids:[{id:'pb', policy:'public'}]}});
 assert.equal(messages[0].status,'processing'); assert.ok(calls.includes('DELETE api.mux.com/video/v1/assets/asM3'));
 reset(); await hook({type:'video.upload.cancelled', data:{id:'upM'}}); assert.equal(messages[0].status,'failed');
+// apagar vídeo de mensagem
+reset(); messages[0].mux_asset_id='asMD'; r = await post({authorization:'Bearer good'}, {action:'delete', message_id:messages[0].id}); assert.equal(r.status,200); assert.ok(calls.includes('DELETE api.mux.com/video/v1/assets/asMD'));
+reset(); messages[0].sender_id='22222222-2222-2222-2222-222222222222'; r = await post({authorization:'Bearer good'}, {action:'delete', message_id:messages[0].id}); assert.equal(r.status,404);
 console.log('all function tests passed');

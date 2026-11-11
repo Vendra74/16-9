@@ -5,6 +5,7 @@
 //   2. O Mux avisa quando o vídeo ficou pronto  → webhook (cabeçalho mux-signature)
 //      O vídeo pode ser de um post ou de uma mensagem; as colunas são as mesmas.
 //   3. O app avisa que apagou um post de vídeo  → { action: 'delete', post_id }
+//      ou uma mensagem com vídeo                → { action: 'delete', message_id }
 //
 // Segredos necessários (Edge Functions → Secrets):
 //   MUX_TOKEN_ID, MUX_TOKEN_SECRET, MUX_WEBHOOK_SECRET
@@ -139,15 +140,16 @@ async function startUpload(userId: string) {
   return json({ upload_id: data.id, url: data.url });
 }
 
-async function releaseVideo(userId: string, postId: unknown) {
-  if (typeof postId !== 'string' || !UUID.test(postId)) return json({ error: 'bad_post_id' }, 400);
-  const [post] = await db('GET', `${COLUMNS}&id=eq.${postId}&user_id=eq.${userId}`);
-  if (!post) return json({ error: 'not_found' }, 404);
-  if (post.mux_asset_id) {
-    await deleteAsset(post.mux_asset_id);
-  } else if (post.mux_upload_id) {
+/** Apaga no Mux o vídeo de um post ou de uma mensagem de quem está chamando. */
+async function releaseVideo(userId: string, id: unknown, table: (typeof TABLES)[number]) {
+  if (typeof id !== 'string' || !UUID.test(id)) return json({ error: 'bad_id' }, 400);
+  const [row] = await db('GET', `${COLUMNS}&id=eq.${id}&${table.owner}=eq.${userId}`, undefined, table.name);
+  if (!row) return json({ error: 'not_found' }, 404);
+  if (row.mux_asset_id) {
+    await deleteAsset(row.mux_asset_id);
+  } else if (row.mux_upload_id) {
     // Ainda enviando: cancela para o Mux não criar o vídeo depois.
-    await mux('PUT', `/video/v1/uploads/${post.mux_upload_id}/cancel`);
+    await mux('PUT', `/video/v1/uploads/${row.mux_upload_id}/cancel`);
   }
   return json({ ok: true });
 }
@@ -278,7 +280,11 @@ export async function handler(req: Request): Promise<Response> {
 
     const body = await req.json().catch(() => ({}));
     if (body.action === 'upload') return await startUpload(userId);
-    if (body.action === 'delete') return await releaseVideo(userId, body.post_id);
+    if (body.action === 'delete') {
+      return body.message_id !== undefined
+        ? await releaseVideo(userId, body.message_id, TABLES[1])
+        : await releaseVideo(userId, body.post_id, TABLES[0]);
+    }
     return json({ error: 'unknown_action' }, 400);
   } catch (error) {
     // Erro nosso: responde 500 para o Mux tentar o aviso de novo mais tarde.

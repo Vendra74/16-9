@@ -26,6 +26,8 @@ type Props = {
   onToggleSound: () => void;
   liked: boolean;
   onLike: () => void;
+  /** Toque no número de curtidas: abre a lista de quem curtiu. */
+  onLikers: () => void;
   /** Toque na foto ou no nome de quem publicou: abre o perfil. */
   onAuthor: () => void;
   onComment: () => void;
@@ -34,7 +36,7 @@ type Props = {
   onMore: () => void;
 };
 
-export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onAuthor, onComment, onMessage, onShare, onMore }: Props) {
+export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onLikers, onAuthor, onComment, onMessage, onShare, onMore }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   /** Carrossel: qual foto está na moldura. */
@@ -152,7 +154,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
               {gear ? <Text style={styles.gear}>{gear}</Text> : null}
             </View>
             <View style={styles.actions} pointerEvents="box-none">
-              <ClapperButton liked={liked} count={post.like_count} onToggle={onLike} size={24} />
+              <ClapperButton liked={liked} count={post.like_count} onToggle={onLike} onCountPress={onLikers} size={24} />
               <Pressable
                 style={styles.action}
                 onPress={onComment}
