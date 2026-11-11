@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useRef, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,10 +12,11 @@ import { Button, Field, FormMessage } from '@/components/form';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { EMPTY_GEAR, gearFromExif, type Gear } from '@/lib/exif';
 import { cropAndResize, uploadJpeg, type CropRect } from '@/lib/images';
-import { createPost } from '@/lib/posts';
+import { createPost, deletePost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
+import { makePoster, MAX_VIDEO_SECONDS, requestUpload, uploadVideo } from '@/lib/video';
 
-type Picked = { uri: string; width: number; height: number };
+type Picked = { kind: 'photo' | 'video'; uri: string; width: number; height: number };
 
 /** Largura máxima do arquivo publicado (16:9 → 2048×1152). */
 const MAX_WIDTH = 2048;
@@ -40,16 +42,33 @@ export default function PublishScreen() {
   async function pick() {
     setError(null);
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       exif: true,
       quality: 1,
+      videoMaxDuration: MAX_VIDEO_SECONDS,
+      // Converte para 1080p antes de enviar: um minuto em 4K passaria de 300 MB.
+      videoExportPreset: ImagePicker.VideoExportPreset.H264_1920x1080,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     let { width, height } = asset;
     // No web o seletor às vezes não informa o tamanho.
     if (!width || !height) ({ width, height } = await Image.getSize(asset.uri));
-    setPicked({ uri: asset.uri, width, height });
+    if (asset.type === 'video') {
+      // O seletor informa a duração em milissegundos.
+      if ((asset.duration ?? 0) > (MAX_VIDEO_SECONDS + 0.5) * 1000) {
+        setError(`O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Corte no app Fotos e escolha de novo.`);
+        return;
+      }
+      if (width && height && height > width) {
+        setError('No 16:9 só entra vídeo na horizontal. Escolha um vídeo gravado com o celular deitado.');
+        return;
+      }
+      setPicked({ kind: 'video', uri: asset.uri, width, height });
+      setGear(EMPTY_GEAR);
+      return;
+    }
+    setPicked({ kind: 'photo', uri: asset.uri, width, height });
     setGear(gearFromExif(asset.exif));
   }
 
@@ -65,14 +84,19 @@ export default function PublishScreen() {
     if (!picked || !session) return;
     setError(null);
     try {
-      setStep('Preparando a imagem…');
-      const image = await cropAndResize(picked.uri, crop.current, MAX_WIDTH);
+      const video = picked.kind === 'video';
+      setStep(video ? 'Preparando a capa…' : 'Preparando a imagem…');
+      const image = video
+        ? await makePoster(picked.uri, MAX_WIDTH)
+        : await cropAndResize(picked.uri, crop.current, MAX_WIDTH);
       setStep('Enviando…');
       const path = await uploadJpeg('posts', session.user.id, image.uri);
-      await createPost({
+      const upload = video ? await requestUpload() : null;
+      const postId = await createPost({
         image_path: path,
         width: image.width,
         height: image.height,
+        ...(upload ? { kind: 'video' as const, mux_upload_id: upload.upload_id } : {}),
         title: title.trim(),
         location: location.trim(),
         camera: gear.camera.trim(),
@@ -82,6 +106,16 @@ export default function PublishScreen() {
         shutter: gear.shutter.trim(),
         iso: gear.iso.trim(),
       });
+      if (upload) {
+        // O post já existe (invisível para os outros) e só aparece quando o vídeo ficar pronto.
+        try {
+          setStep('Enviando o vídeo… 0%');
+          await uploadVideo(upload.url, picked.uri, (f) => setStep(`Enviando o vídeo… ${Math.round(f * 100)}%`));
+        } catch (e) {
+          await deletePost({ id: postId, image_path: path, kind: 'video' }).catch(() => {});
+          throw e;
+        }
+      }
       reset();
       router.navigate('/');
     } catch {
@@ -96,10 +130,11 @@ export default function PublishScreen() {
       <View style={styles.center}>
         <Text style={styles.title}>Publicar</Text>
         <Text style={styles.text}>
-          Escolha uma foto. Você enquadra em 16:9 e a ficha técnica (câmera, lente, abertura, velocidade e ISO) é
-          preenchida a partir da própria foto.
+          Escolha uma foto ou um vídeo de até 1 minuto, na horizontal. A foto você enquadra em 16:9, e a ficha
+          técnica (câmera, lente, abertura, velocidade e ISO) é preenchida a partir dela.
         </Text>
-        <Button title="Escolher foto" onPress={pick} />
+        <FormMessage text={error} />
+        <Button title="Escolher foto ou vídeo" onPress={pick} />
       </View>
     );
   }
@@ -115,7 +150,9 @@ export default function PublishScreen() {
   return (
     <View style={[styles.screen, { paddingRight: insets.right }]}>
       <View style={styles.preview}>
-        {frameWidth > 0 ? (
+        {frameWidth <= 0 ? null : picked.kind === 'video' ? (
+          <VideoPreview key={picked.uri} uri={picked.uri} width={frameWidth} />
+        ) : (
           <CropFrame
             key={picked.uri}
             uri={picked.uri}
@@ -124,9 +161,9 @@ export default function PublishScreen() {
             width={frameWidth}
             onCropChange={onCropChange}
           />
-        ) : null}
+        )}
         <View style={styles.previewActions}>
-          <Button variant="ghost" title="Trocar foto" onPress={pick} disabled={busy} />
+          <Button variant="ghost" title="Trocar" onPress={pick} disabled={busy} />
           <Button variant="ghost" title="Cancelar" onPress={reset} disabled={busy} />
         </View>
       </View>
@@ -171,6 +208,21 @@ export default function PublishScreen() {
         )}
       </ScrollView>
     </View>
+  );
+}
+
+/** Como o vídeo vai aparecer no feed: preenchendo a moldura 16:9. */
+function VideoPreview({ uri, width }: { uri: string; width: number }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+  });
+  return (
+    <VideoView
+      player={player}
+      style={{ width, height: width / FrameRatio, backgroundColor: Colors.surface }}
+      contentFit="cover"
+      nativeControls
+    />
   );
 }
 

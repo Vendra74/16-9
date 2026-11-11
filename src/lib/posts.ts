@@ -1,6 +1,7 @@
 import type { Gear } from '@/lib/exif';
 import { publicUrl } from '@/lib/images';
 import { supabase } from '@/lib/supabase';
+import { releaseVideo } from '@/lib/video';
 
 export type FeedPost = Gear & {
   id: string;
@@ -11,6 +12,12 @@ export type FeedPost = Gear & {
   title: string;
   location: string;
   created_at: string;
+  kind: 'photo' | 'video';
+  /** Vídeos nascem "processing" e só aparecem para os outros quando ficam "ready". */
+  status: 'processing' | 'ready' | 'failed';
+  /** Endereço de streaming (HLS). Nos vídeos, image_path é a capa. */
+  video_url: string | null;
+  duration: number | null;
   like_count: number;
   comment_count: number;
   /** Só traz a curtida de quem está logado (regra do banco): vazio = não curtiu. */
@@ -24,7 +31,7 @@ export type FeedPost = Gear & {
 };
 
 const COLUMNS =
-  'id, user_id, image_path, width, height, title, location, camera, lens, focal_length, aperture, shutter, iso, created_at, ' +
+  'id, user_id, image_path, width, height, title, location, camera, lens, focal_length, aperture, shutter, iso, created_at, kind, status, video_url, duration, ' +
   'like_count, comment_count, my_like:likes(user_id), author:profiles!posts_user_id_fkey(username, display_name, specialty, avatar_url)';
 
 export function postImageUrl(post: Pick<FeedPost, 'image_path'>) {
@@ -59,14 +66,20 @@ export type NewPost = Gear & {
   height: number;
   title: string;
   location: string;
+  kind?: 'photo' | 'video';
+  mux_upload_id?: string;
 };
 
+/** Cria o post e devolve o id. */
 export async function createPost(post: NewPost) {
-  const { error } = await supabase.from('posts').insert(post);
+  const { data, error } = await supabase.from('posts').insert(post).select('id').single<{ id: string }>();
   if (error) throw error;
+  return data.id;
 }
 
-export async function deletePost(post: Pick<FeedPost, 'id' | 'image_path'>) {
+export async function deletePost(post: Pick<FeedPost, 'id' | 'image_path' | 'kind'>) {
+  // O vídeo sai do Mux primeiro; se falhar, o post continua e dá para tentar de novo.
+  if (post.kind === 'video') await releaseVideo(post.id);
   const { error } = await supabase.from('posts').delete().eq('id', post.id);
   if (error) throw error;
   // A imagem sai depois; se falhar, só fica um arquivo órfão no Storage.

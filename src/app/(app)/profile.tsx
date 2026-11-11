@@ -223,6 +223,11 @@ function MyWorks({ userId }: { userId: string }) {
         {posts.map((post) => (
           <Pressable key={post.id} style={styles.tile} onLongPress={() => confirmDelete(post)} delayLongPress={350}>
             <Image source={{ uri: postImageUrl(post) }} style={styles.tileImage} contentFit="cover" transition={200} />
+            {post.kind === 'video' ? (
+              <Text style={styles.tileTag}>
+                {post.status === 'processing' ? 'Processando…' : post.status === 'failed' ? 'Falhou' : 'Vídeo'}
+              </Text>
+            ) : null}
             <Text style={styles.tileTitle} numberOfLines={1}>
               {post.title || post.location || settingsLine(post) || ' '}
             </Text>
@@ -445,6 +450,19 @@ const styles = StyleSheet.create({
   },
   grid: {
     gap: Spacing.sm,
+  },
+  tileTag: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    color: Colors.text,
+    fontSize: 10,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.65)',
   },
   gridTitle: {
     color: Colors.text,

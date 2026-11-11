@@ -1,6 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Alert, FlatList, RefreshControl, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 
 import { ApertureLoader } from '@/components/aperture';
 import { CommentsPanel } from '@/components/comments-panel';
@@ -14,6 +22,9 @@ import { askModeration } from '@/lib/moderation';
 import { fetchFeed, type FeedPost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
 
+/** Um post conta como "na tela" quando mais da metade dele aparece. */
+const VIEWABILITY = { itemVisiblePercentThreshold: 60 };
+
 /**
  * Feed: um trabalho por vez, na maior moldura 16:9 que cabe ao lado do
  * trilho. Deslize para cima para o próximo; puxe no topo para atualizar.
@@ -25,8 +36,15 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [sharing, setSharing] = useState<FeedPost | null>(null);
   const [commenting, setCommenting] = useState<FeedPost | null>(null);
+  const [focused, setFocused] = useState(false);
+  const [visibleId, setVisibleId] = useState<string | null>(null);
+  // O som vale para o feed todo: ligou num vídeo, os próximos já tocam com som.
+  const [muted, setMuted] = useState(true);
   const { session } = useSession();
   const me = session?.user.id;
+  const list = useRef<FlatList<FeedPost>>(null);
+  const firstId = posts?.[0]?.id;
+  const waiting = posts?.some((p) => p.status === 'processing') ?? false;
 
   const load = useCallback(async () => {
     try {
@@ -41,8 +59,31 @@ export default function FeedScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
+      setFocused(true);
+      // Fora do feed o vídeo para.
+      return () => setFocused(false);
     }, [load]),
   );
+
+  // Enquanto um vídeo seu está sendo processado, confere de tempos em tempos se ficou pronto.
+  useFocusEffect(
+    useCallback(() => {
+      if (!waiting) return;
+      const timer = setInterval(load, 5000);
+      return () => clearInterval(timer);
+    }, [waiting, load]),
+  );
+
+  // Chegou post novo no topo (ex.: você acabou de publicar): volta para o começo.
+  useEffect(() => {
+    if (firstId) list.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [firstId]);
+
+  // Precisa ser sempre a mesma função: a lista não aceita trocar esse aviso depois de montada.
+  const onViewable = useCallback(({ viewableItems }: { viewableItems: { isViewable: boolean; item: FeedPost }[] }) => {
+    const first = viewableItems.find((v) => v.isViewable);
+    if (first) setVisibleId(first.item.id);
+  }, []);
 
   async function refresh() {
     setRefreshing(true);
@@ -134,6 +175,7 @@ export default function FeedScreen() {
   } else if (area.height > 0) {
     content = (
       <FlatList
+        ref={list}
         style={styles.list}
         data={posts}
         keyExtractor={(item) => item.id}
@@ -141,6 +183,8 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.silver} />}
+        viewabilityConfig={VIEWABILITY}
+        onViewableItemsChanged={onViewable}
         getItemLayout={(_, index) => ({ length: area.height, offset: area.height * index, index })}
         renderItem={({ item }) => (
           <View style={[styles.page, { height: area.height }]}>
@@ -149,6 +193,9 @@ export default function FeedScreen() {
               width={frameW}
               height={frameH}
               isMine={item.user_id === me}
+              active={focused && item.id === (visibleId ?? posts[0]?.id)}
+              muted={muted}
+              onToggleSound={() => setMuted((m) => !m)}
               liked={item.my_like.length > 0}
               onLike={() => toggleLike(item)}
               onComment={() => setCommenting(item)}
