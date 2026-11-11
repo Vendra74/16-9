@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -22,15 +23,18 @@ import { MoreIcon, PublishIcon, SendIcon } from '@/components/rail-icons';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { useInbox } from '@/lib/inbox';
 import {
+  deleteMessage,
   fetchConversation,
   fetchMessage,
   fetchMessages,
+  isBlockedByMe,
   isUnread,
   markRead,
   otherPerson,
   sendMedia,
   sendMessage,
   startConversation,
+  unblockUser,
   type Conversation,
   type Message,
 } from '@/lib/messages';
@@ -149,7 +153,7 @@ export default function MessagesScreen() {
 }
 
 function Chat({ conversationId, me }: { conversationId: string; me: string }) {
-  const { onMessage, refresh } = useInbox();
+  const { onMessage, onDeleted, refresh } = useInbox();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [text, setText] = useState('');
@@ -173,12 +177,23 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
         setConversation(c);
         setMessages(list);
         read();
+        // Se você já tinha bloqueado a pessoa, a conversa abre fechada, com a opção de desbloquear.
+        const other = c.user_a === me ? c.user_b : c.user_a;
+        isBlockedByMe(other)
+          .then((is) => active && setBlocked(is))
+          .catch(() => {});
       })
       .catch(() => active && setError('Não foi possível carregar a conversa.'));
     return () => {
       active = false;
     };
-  }, [conversationId, read]);
+  }, [conversationId, read, me]);
+
+  // Mensagem apagada (por qualquer um dos dois) some da tela na hora.
+  useEffect(
+    () => onDeleted((id) => setMessages((list) => list?.filter((m) => m.id !== id) ?? null)),
+    [onDeleted],
+  );
 
   // Mensagens novas desta conversa chegam em tempo real.
   useEffect(
@@ -202,6 +217,36 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
     }, 5000);
     return () => clearInterval(timer);
   }, [processing, conversationId]);
+
+  /** Toque longo numa mensagem sua: apagar para as duas pessoas. */
+  function confirmDelete(message: Message) {
+    Alert.alert('Apagar esta mensagem?', 'Ela some para você e para a outra pessoa. Não dá para desfazer.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Apagar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteMessage(message);
+            setMessages((list) => list?.filter((m) => m.id !== message.id) ?? null);
+            refresh();
+          } catch {
+            Alert.alert('Não foi possível apagar', 'Confira a internet e tente de novo.');
+          }
+        },
+      },
+    ]);
+  }
+
+  async function unblock(personId: string) {
+    try {
+      await unblockUser(personId);
+      setBlocked(false);
+      setError(null);
+    } catch {
+      Alert.alert('Não foi possível desbloquear', 'Confira a internet e tente de novo.');
+    }
+  }
 
   async function attach() {
     if (step !== null) return;
@@ -267,7 +312,14 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
         inverted
         keyExtractor={(m) => m.id}
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => <Bubble message={item} mine={item.sender_id === me} onOpen={() => setViewing(item)} />}
+        renderItem={({ item }) => (
+          <Bubble
+            message={item}
+            mine={item.sender_id === me}
+            onOpen={() => setViewing(item)}
+            onDelete={() => confirmDelete(item)}
+          />
+        )}
         ListEmptyComponent={
           <Text style={[styles.emptySmall, styles.flipped]}>Diga oi para {name}.</Text>
         }
@@ -277,7 +329,10 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       <FormMessage text={step} tone="info" />
       <MediaViewer message={viewing} onClose={() => setViewing(null)} />
       {blocked ? (
-        <Text style={styles.blocked}>Você bloqueou {name}. A conversa está fechada.</Text>
+        <View style={styles.blockedRow}>
+          <Text style={styles.blocked}>Você bloqueou {name}. A conversa está fechada.</Text>
+          {person ? <Button variant="ghost" title="Desbloquear" onPress={() => unblock(person.id)} /> : null}
+        </View>
       ) : (
         <View style={styles.inputRow}>
           <Pressable
@@ -313,11 +368,25 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   );
 }
 
-function Bubble({ message, mine, onOpen }: { message: Message; mine: boolean; onOpen: () => void }) {
+function Bubble({
+  message,
+  mine,
+  onOpen,
+  onDelete,
+}: {
+  message: Message;
+  mine: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
   const post = message.post;
   return (
     <View style={[styles.bubbleRow, mine && styles.bubbleRowMine]}>
-      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+      <Pressable
+        style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}
+        onLongPress={mine ? onDelete : undefined}
+        delayLongPress={350}
+        accessibilityHint={mine ? 'Segure para apagar' : undefined}>
         {message.post_id ? (
           post ? (
             <View style={styles.shared}>
@@ -333,7 +402,7 @@ function Bubble({ message, mine, onOpen }: { message: Message; mine: boolean; on
         {message.image_path ? <MediaThumb message={message} onOpen={onOpen} /> : null}
         {message.body ? <Text style={[styles.bubbleText, mine && styles.textMine]}>{message.body}</Text> : null}
         <Text style={[styles.bubbleTime, mine && styles.timeMine]}>{timeLabel(message.created_at)}</Text>
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -538,6 +607,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 9,
     paddingBottom: 9,
+  },
+  blockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
   },
   attachButton: {
     width: 38,

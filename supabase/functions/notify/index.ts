@@ -134,13 +134,24 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
 
   if (input.kind === 'comment') {
     if (typeof input.id !== 'string' || !UUID.test(input.id)) return { skipped: 'bad_id' };
-    const [comment] = await db<{ post_id: string; body: string; created_at: string }>(
+    const [comment] = await db<{ post_id: string; body: string; parent_id?: string | null; created_at: string }>(
       'GET',
       'comments',
-      `select=post_id,body,created_at&id=eq.${input.id}&user_id=eq.${userId}`,
+      `select=*&id=eq.${input.id}&user_id=eq.${userId}`,
     );
     if (!comment) return { skipped: 'not_found' };
     if (!isFresh(comment.created_at)) return { skipped: 'stale' };
+    // Resposta avisa quem escreveu o comentário; comentário novo avisa o dono do post.
+    if (comment.parent_id) {
+      const [parent] = await db<{ user_id: string }>('GET', 'comments', `select=user_id&id=eq.${comment.parent_id}`);
+      if (!parent) return { skipped: 'not_found' };
+      return {
+        to: parent.user_id,
+        title: 'Responderam seu comentário',
+        body: `${await sender()}: ${clip(comment.body, 110)}`,
+        data: { type: 'comment', post: comment.post_id },
+      };
+    }
     const [post] = await db<{ user_id: string }>('GET', 'posts', `select=user_id&id=eq.${comment.post_id}`);
     if (!post) return { skipped: 'not_found' };
     return {
