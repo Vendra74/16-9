@@ -104,10 +104,10 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
 
   if (input.kind === 'message') {
     if (typeof input.id !== 'string' || !UUID.test(input.id)) return { skipped: 'bad_id' };
-    const [message] = await db<{ conversation_id: string; body: string; created_at: string }>(
+    const [message] = await db<{ conversation_id: string; body: string; kind?: string; created_at: string }>(
       'GET',
       'messages',
-      `select=conversation_id,body,created_at&id=eq.${input.id}&sender_id=eq.${userId}`,
+      `select=*&id=eq.${input.id}&sender_id=eq.${userId}`,
     );
     if (!message) return { skipped: 'not_found' };
     if (!isFresh(message.created_at)) return { skipped: 'stale' };
@@ -121,7 +121,13 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
     return {
       to,
       title: await sender(),
-      body: message.body ? clip(message.body) : 'Compartilhou um trabalho com você',
+      body: message.body
+        ? clip(message.body)
+        : message.kind === 'photo'
+          ? 'Enviou uma foto'
+          : message.kind === 'video'
+            ? 'Enviou um vídeo'
+            : 'Compartilhou um trabalho com você',
       data: { type: 'message', c: message.conversation_id },
     };
   }

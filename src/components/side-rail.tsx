@@ -1,8 +1,9 @@
-import { usePathname } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import type { TabTriggerSlotProps } from 'expo-router/ui';
 import type { ComponentType } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { BackIcon } from '@/components/rail-icons';
 import { Colors, FrameRatio, RailWidth, Spacing } from '@/constants/theme';
 
 type RailButtonProps = Omit<TabTriggerSlotProps, 'ref'> & {
@@ -25,6 +26,33 @@ export function RailButton({ label, route, Icon, badge, isFocused: _isFocused, .
         {badge ? <View style={styles.badge} /> : null}
       </View>
       <Text style={[styles.label, { color }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Trilho das telas que abrem por cima das abas: só o botão de voltar,
+ * no mesmo lugar e do mesmo tamanho do trilho de navegação.
+ */
+export function BackRail() {
+  const railStyle = useRailStyle();
+  return (
+    <View style={railStyle}>
+      <BackButton />
+    </View>
+  );
+}
+
+export function BackButton() {
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Voltar"
+      style={styles.button}>
+      <BackIcon color={Colors.text} />
+      <Text style={[styles.label, { color: Colors.text }]}>Voltar</Text>
     </Pressable>
   );
 }

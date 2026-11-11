@@ -41,12 +41,15 @@ function webFrame(uri: string, seconds: number) {
   });
 }
 
-/** Capa do vídeo: um quadro do começo, recortado em 16:9 e salvo em JPEG. */
-export async function makePoster(videoUri: string, maxWidth: number) {
+/** Sem escolha da pessoa, a capa é um quadro do começo do vídeo. */
+export const DEFAULT_COVER_SECONDS = 0.5;
+
+/** Capa do vídeo: o quadro do instante escolhido, recortado em 16:9 e salvo em JPEG. */
+export async function makePoster(videoUri: string, maxWidth: number, seconds = DEFAULT_COVER_SECONDS) {
   const frame =
     Platform.OS === 'web'
-      ? await webFrame(videoUri, 0.5)
-      : await VideoThumbnails.getThumbnailAsync(videoUri, { time: 500, quality: 0.9 });
+      ? await webFrame(videoUri, seconds)
+      : await VideoThumbnails.getThumbnailAsync(videoUri, { time: Math.round(seconds * 1000), quality: 0.9 });
   return cropAndResize(frame.uri, centerCrop(frame.width, frame.height), maxWidth);
 }
 
@@ -88,4 +91,21 @@ export async function uploadVideo(url: string, uri: string, onProgress: (fractio
 export async function releaseVideo(postId: string) {
   const { error } = await supabase.functions.invoke('video', { body: { action: 'delete', post_id: postId } });
   if (error) throw error;
+}
+
+/**
+ * Vídeo que acabou de ser gravado na tela de gravação, esperando o Publicar
+ * pegar. Fica na memória: é só a passagem de uma tela para a outra.
+ */
+let recorded: string | null = null;
+
+export function setRecordedVideo(uri: string) {
+  recorded = uri;
+}
+
+/** Devolve o vídeo gravado (uma vez só) ou `null`. */
+export function takeRecordedVideo() {
+  const uri = recorded;
+  recorded = null;
+  return uri;
 }

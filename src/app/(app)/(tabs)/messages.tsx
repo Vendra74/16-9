@@ -16,8 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
 import { Button, FormMessage } from '@/components/form';
+import { MediaThumb, MediaViewer, pickMedia } from '@/components/message-media';
 import { PeoplePicker } from '@/components/people-picker';
-import { MoreIcon, SendIcon } from '@/components/rail-icons';
+import { MoreIcon, PublishIcon, SendIcon } from '@/components/rail-icons';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { useInbox } from '@/lib/inbox';
 import {
@@ -27,6 +28,7 @@ import {
   isUnread,
   markRead,
   otherPerson,
+  sendMedia,
   sendMessage,
   startConversation,
   type Conversation,
@@ -154,6 +156,10 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
+  /** Andamento do envio de uma foto ou vídeo; `null` quando não há envio. */
+  const [step, setStep] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Message | null>(null);
+  const processing = messages?.some((m) => m.status === 'processing') ?? false;
 
   const read = useCallback(() => {
     markRead(conversationId).then(refresh);
@@ -185,6 +191,33 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       }),
     [onMessage, conversationId, me, read],
   );
+
+  // Enquanto um vídeo da conversa está sendo processado, confere de tempos em tempos se ficou pronto.
+  useEffect(() => {
+    if (!processing) return;
+    const timer = setInterval(() => {
+      fetchMessages(conversationId)
+        .then(setMessages)
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [processing, conversationId]);
+
+  async function attach() {
+    if (step !== null) return;
+    setError(null);
+    try {
+      const media = await pickMedia();
+      if (!media) return;
+      setStep('Preparando…');
+      const sent = await sendMedia(conversationId, me, media, setStep);
+      setMessages((list) => (list && !list.some((m) => m.id === sent.id) ? [sent, ...list] : list));
+    } catch {
+      setError('Não foi possível enviar. Confira a internet e tente de novo.');
+    } finally {
+      setStep(null);
+    }
+  }
 
   async function send() {
     const body = text.trim();
@@ -234,17 +267,28 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
         inverted
         keyExtractor={(m) => m.id}
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => <Bubble message={item} mine={item.sender_id === me} />}
+        renderItem={({ item }) => <Bubble message={item} mine={item.sender_id === me} onOpen={() => setViewing(item)} />}
         ListEmptyComponent={
           <Text style={[styles.emptySmall, styles.flipped]}>Diga oi para {name}.</Text>
         }
       />
 
       <FormMessage text={error} />
+      <FormMessage text={step} tone="info" />
+      <MediaViewer message={viewing} onClose={() => setViewing(null)} />
       {blocked ? (
         <Text style={styles.blocked}>Você bloqueou {name}. A conversa está fechada.</Text>
       ) : (
         <View style={styles.inputRow}>
+          <Pressable
+            onPress={attach}
+            disabled={step !== null}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Enviar foto ou vídeo"
+            style={[styles.attachButton, step !== null && styles.dimmed]}>
+            <PublishIcon color={Colors.textSecondary} size={24} />
+          </Pressable>
           <TextInput
             style={styles.input}
             placeholder="Mensagem"
@@ -269,7 +313,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   );
 }
 
-function Bubble({ message, mine }: { message: Message; mine: boolean }) {
+function Bubble({ message, mine, onOpen }: { message: Message; mine: boolean; onOpen: () => void }) {
   const post = message.post;
   return (
     <View style={[styles.bubbleRow, mine && styles.bubbleRowMine]}>
@@ -286,6 +330,7 @@ function Bubble({ message, mine }: { message: Message; mine: boolean }) {
             <Text style={[styles.sharedGone, mine && styles.textMine]}>Trabalho indisponível</Text>
           )
         ) : null}
+        {message.image_path ? <MediaThumb message={message} onOpen={onOpen} /> : null}
         {message.body ? <Text style={[styles.bubbleText, mine && styles.textMine]}>{message.body}</Text> : null}
         <Text style={[styles.bubbleTime, mine && styles.timeMine]}>{timeLabel(message.created_at)}</Text>
       </View>
@@ -493,6 +538,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 9,
     paddingBottom: 9,
+  },
+  attachButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendButton: {
     width: 38,
