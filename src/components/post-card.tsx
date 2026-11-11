@@ -26,13 +26,15 @@ type Props = {
   onToggleSound: () => void;
   liked: boolean;
   onLike: () => void;
+  /** Toque na foto ou no nome de quem publicou: abre o perfil. */
+  onAuthor: () => void;
   onComment: () => void;
   onMessage: () => void;
   onShare: () => void;
   onMore: () => void;
 };
 
-export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onComment, onMessage, onShare, onMore }: Props) {
+export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onAuthor, onComment, onMessage, onShare, onMore }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   const name = post.author?.display_name || post.author?.username || 'Alguém';
@@ -76,13 +78,21 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
       {showInfo && (
         <>
           <View style={styles.top}>
-            <Avatar name={name} url={post.author?.avatar_url} size={34} />
-            <View style={styles.flex}>
-              <Text style={styles.author}>{name}</Text>
-              <Text style={styles.meta}>
-                {[post.author && `@${post.author.username}`, post.author?.specialty].filter(Boolean).join(' · ')}
-              </Text>
-            </View>
+            <Pressable
+              style={styles.authorRow}
+              onPress={onAuthor}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Ver o perfil de ${name}`}>
+              <Avatar name={name} url={post.author?.avatar_url} size={34} />
+              <View style={styles.shrink}>
+                <Text style={styles.author}>{name}</Text>
+                <Text style={styles.meta}>
+                  {[post.author && `@${post.author.username}`, post.author?.specialty].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </Pressable>
+            <View style={styles.flex} />
             {playable ? (
               <Pressable
                 onPress={onToggleSound}
@@ -174,6 +184,15 @@ const shadow = {
 } as const;
 
 const styles = StyleSheet.create({
+  shrink: {
+    flexShrink: 1,
+  },
+  authorRow: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   video: {
     position: 'absolute',
     top: 0,

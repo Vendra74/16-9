@@ -143,6 +143,19 @@ export async function blockUser(userId: string) {
   if (error && error.code !== '23505') throw error;
 }
 
+export async function unblockUser(userId: string) {
+  // A regra do banco só deixa apagar os bloqueios de quem está logado.
+  const { error } = await supabase.from('blocks').delete().eq('blocked', userId);
+  if (error) throw error;
+}
+
+/** Você bloqueou essa pessoa? (O banco só mostra os seus próprios bloqueios.) */
+export async function isBlockedByMe(userId: string) {
+  const { data, error } = await supabase.from('blocks').select('blocked').eq('blocked', userId).limit(1);
+  if (error) throw error;
+  return data.length > 0;
+}
+
 export async function report(target: { userId?: string; postId?: string; messageId?: string; commentId?: string }, reason: string) {
   const { error } = await supabase.from('reports').insert({
     reported_user: target.userId ?? null,

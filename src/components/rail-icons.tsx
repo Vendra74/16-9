@@ -99,3 +99,11 @@ export function MoreIcon({ color, size = 22 }: IconProps) {
     </Svg>
   );
 }
+
+export function BackIcon({ color, size = 26 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M14.5 5.5 8 12l6.5 6.5" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}

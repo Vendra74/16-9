@@ -60,6 +60,41 @@ export async function fetchUserPosts(userId: string) {
   return data;
 }
 
+/** Tira o que atrapalha o filtro do banco (curingas e separadores). */
+function clean(query: string) {
+  return query.trim().replace(/[%_,()"\\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Explorar: os trabalhos mais curtidos ("top") ou os mais novos ("recent"). */
+export async function fetchExplore(sort: 'top' | 'recent', limit = 60) {
+  let req = supabase.from('posts').select(COLUMNS).eq('status', 'ready');
+  if (sort === 'top') req = req.order('like_count', { ascending: false });
+  const { data, error } = await req
+    .order('created_at', { ascending: false })
+    .limit(limit)
+    .overrideTypes<FeedPost[], { merge: false }>();
+  if (error) throw error;
+  return data;
+}
+
+/** Busca trabalhos pelo título, lugar ou equipamento. */
+export async function searchPosts(query: string, limit = 40) {
+  const q = clean(query);
+  if (!q) return [];
+  const like = `ilike.%${q}%`;
+  const { data, error } = await supabase
+    .from('posts')
+    .select(COLUMNS)
+    .eq('status', 'ready')
+    .or(`title.${like},location.${like},camera.${like},lens.${like}`)
+    .order('like_count', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit)
+    .overrideTypes<FeedPost[], { merge: false }>();
+  if (error) throw error;
+  return data;
+}
+
 export type NewPost = Gear & {
   image_path: string;
   width: number;

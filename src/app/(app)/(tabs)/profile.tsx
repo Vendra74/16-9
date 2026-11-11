@@ -24,6 +24,7 @@ import {
 import { unregisterFromPush } from '@/lib/push';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
+import { openViewer } from '@/lib/viewer';
 
 type Panel = 'works' | 'edit' | 'feedback';
 
@@ -225,7 +226,12 @@ function MyWorks({ userId }: { userId: string }) {
       </Text>
       <View style={styles.gridItems}>
         {posts.map((post) => (
-          <Pressable key={post.id} style={styles.tile} onLongPress={() => confirmDelete(post)} delayLongPress={350}>
+          <Pressable
+            key={post.id}
+            style={styles.tile}
+            onPress={() => openViewer(posts, post.id)}
+            onLongPress={() => confirmDelete(post)}
+            delayLongPress={350}>
             <Image source={{ uri: postImageUrl(post) }} style={styles.tileImage} contentFit="cover" transition={200} />
             {post.kind === 'video' ? (
               <Text style={styles.tileTag}>
@@ -238,7 +244,7 @@ function MyWorks({ userId }: { userId: string }) {
           </Pressable>
         ))}
       </View>
-      <Text style={styles.hint}>Segure um trabalho para apagar.</Text>
+      <Text style={styles.hint}>Toque para abrir. Segure um trabalho para apagar.</Text>
     </View>
   );
 }
