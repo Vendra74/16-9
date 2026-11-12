@@ -8,10 +8,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
+import { FollowPanel } from '@/components/follow-panel';
 import { Button, Field, FormMessage } from '@/components/form';
+import { ProfileCountsRow } from '@/components/profile-counts';
 import { ProfileLinks } from '@/components/profile-links';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
+import { fetchCounts, type FollowKind, type ProfileCounts } from '@/lib/follows';
 import { MAX_LINKS, normalizeLink } from '@/lib/links';
 import { cropAndResize, publicUrl, uploadJpeg } from '@/lib/images';
 import { fetchBlocked, unblockUser, type MiniProfile } from '@/lib/messages';
@@ -44,6 +47,15 @@ export default function ProfileScreen() {
   const [attempt, setAttempt] = useState(0);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [counts, setCounts] = useState<ProfileCounts | null>(null);
+  const [list, setList] = useState<FollowKind | null>(null);
+
+  const loadCounts = useCallback(() => {
+    if (userId) fetchCounts(userId).then(setCounts).catch(() => {});
+  }, [userId]);
+
+  // Atualiza os números ao voltar para o Perfil (ex.: depois de seguir alguém).
+  useFocusEffect(loadCounts);
 
   useEffect(() => {
     if (!userId) return;
@@ -129,6 +141,7 @@ export default function ProfileScreen() {
         <Text style={styles.name}>{profile.display_name || profile.username}</Text>
         <Text style={styles.handle}>@{profile.username}</Text>
         {details ? <Text style={styles.details}>{details}</Text> : null}
+        <ProfileCountsRow counts={counts} onOpen={setList} />
         {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
         <ProfileLinks links={profile.links} />
         {!profile.bio && !profile.links?.length && panel !== 'edit' ? (
@@ -194,15 +207,22 @@ export default function ProfileScreen() {
         ) : panel === 'account' ? (
           <AccountPanel />
         ) : (
-          <MyWorks userId={profile.id} />
+          <MyWorks userId={profile.id} onChanged={loadCounts} />
         )}
       </ScrollView>
+      <FollowPanel
+        userId={list ? profile.id : null}
+        kind={list ?? 'followers'}
+        onKindChange={setList}
+        onClose={() => setList(null)}
+        onChanged={loadCounts}
+      />
     </View>
   );
 }
 
 /** Portfólio: os trabalhos da pessoa em 16:9. Segurar um trabalho oferece apagar. */
-function MyWorks({ userId }: { userId: string }) {
+function MyWorks({ userId, onChanged }: { userId: string; onChanged: () => void }) {
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [error, setError] = useState(false);
 
@@ -227,6 +247,7 @@ function MyWorks({ userId }: { userId: string }) {
           try {
             await deletePost(post);
             setPosts((list) => list?.filter((p) => p.id !== post.id) ?? null);
+            onChanged();
           } catch {
             Alert.alert(t('Não foi possível apagar'), t('Confira a internet e tente de novo.'));
           }
