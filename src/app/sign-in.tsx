@@ -1,12 +1,13 @@
 import type { AuthError } from '@supabase/supabase-js';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
 import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Aperture } from '@/components/aperture';
 import { Button, Field, FormMessage } from '@/components/form';
 import { Colors, Spacing } from '@/constants/theme';
+import { openPrivacy, openTerms } from '@/lib/legal';
 import { isUsernameAvailable, normalizeUsername, USERNAME_PATTERN } from '@/lib/profile';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
 import { t } from '@/lib/i18n';
@@ -288,6 +289,21 @@ export default function SignInScreen() {
           </>
         ) : (
           <>
+            {signingUp ? (
+              <View style={styles.consent}>
+                <Text style={styles.consentText}>
+                  {t('Ao criar a conta, você concorda com os Termos de uso e a Política de privacidade. Nudez, violência, assédio e conteúdo ilegal não são permitidos.')}
+                </Text>
+                <View style={styles.consentLinks}>
+                  <Pressable onPress={openTerms} hitSlop={6} accessibilityRole="link">
+                    <Text style={styles.consentLink}>{t('Termos de uso')}</Text>
+                  </Pressable>
+                  <Pressable onPress={openPrivacy} hitSlop={6} accessibilityRole="link">
+                    <Text style={styles.consentLink}>{t('Política de privacidade')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
             <Button
               title={signingUp ? t('Criar conta') : t('Entrar')}
               onPress={submit}
@@ -308,6 +324,23 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
+  consent: {
+    gap: Spacing.xs,
+  },
+  consentText: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  consentLinks: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  consentLink: {
+    color: Colors.text,
+    fontSize: 12,
+    textDecorationLine: 'underline',
+  },
   screen: {
     flex: 1,
     flexDirection: 'row',

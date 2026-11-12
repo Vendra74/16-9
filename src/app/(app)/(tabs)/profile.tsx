@@ -22,13 +22,15 @@ import {
   USERNAME_PATTERN,
   type Profile,
 } from '@/lib/profile';
+import { deleteAccount } from '@/lib/account';
+import { openPrivacy, openTerms } from '@/lib/legal';
 import { unregisterFromPush } from '@/lib/push';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { openViewer } from '@/lib/viewer';
 import { LANGUAGE_NAMES, plural, setLanguage, t, useLanguage, type Language } from '@/lib/i18n';
 
-type Panel = 'works' | 'edit' | 'feedback' | 'blocked' | 'language';
+type Panel = 'works' | 'edit' | 'feedback' | 'blocked' | 'language' | 'account';
 
 export default function ProfileScreen() {
   const { session } = useSession();
@@ -148,6 +150,11 @@ export default function ProfileScreen() {
             title={t('Idioma')}
             onPress={() => setPanel(panel === 'language' ? 'works' : 'language')}
           />
+          <Button
+            variant={panel === 'account' ? 'primary' : 'ghost'}
+            title={t('Conta e privacidade')}
+            onPress={() => setPanel(panel === 'account' ? 'works' : 'account')}
+          />
           <Button variant="ghost" title={t('Sair')} onPress={async () => {
               await unregisterFromPush();
               await supabase.auth.signOut();
@@ -176,6 +183,8 @@ export default function ProfileScreen() {
           <BlockedList />
         ) : panel === 'language' ? (
           <LanguagePicker />
+        ) : panel === 'account' ? (
+          <AccountPanel />
         ) : (
           <MyWorks userId={profile.id} />
         )}
@@ -352,6 +361,57 @@ function LanguagePicker() {
             </Pressable>
           );
         })}
+      </View>
+    </View>
+  );
+}
+
+/** Termos, privacidade e apagar a conta (exigência do Google Play e da App Store). */
+function AccountPanel() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove() {
+    setError(null);
+    setBusy(true);
+    try {
+      await deleteAccount();
+      // Sem sessão, o app volta sozinho para a tela de entrada.
+    } catch {
+      setBusy(false);
+      setError(t('Não foi possível apagar a conta agora. Confira a internet e tente de novo.'));
+    }
+  }
+
+  function confirm() {
+    Alert.alert(
+      t('Apagar sua conta?'),
+      t('Seus trabalhos, fotos, vídeos, comentários, curtidas e conversas serão apagados para sempre. Não dá para desfazer.'),
+      [
+        { text: t('Cancelar'), style: 'cancel' },
+        { text: t('Apagar conta'), style: 'destructive', onPress: remove },
+      ],
+    );
+  }
+
+  return (
+    <View style={styles.form}>
+      <Text style={styles.formTitle}>{t('Conta e privacidade')}</Text>
+      <View style={styles.legalLinks}>
+        <Pressable onPress={openTerms} hitSlop={6} accessibilityRole="link">
+          <Text style={styles.legalLink}>{t('Termos de uso')}</Text>
+        </Pressable>
+        <Pressable onPress={openPrivacy} hitSlop={6} accessibilityRole="link">
+          <Text style={styles.legalLink}>{t('Política de privacidade')}</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.dangerTitle}>{t('Apagar conta')}</Text>
+      <Text style={styles.emptyText}>
+        {t('Apaga de vez seu perfil, seus trabalhos, fotos, vídeos, comentários, curtidas e conversas.')}
+      </Text>
+      <FormMessage text={error} />
+      <View style={styles.dangerButton}>
+        <Button variant="ghost" title={t('Apagar minha conta')} onPress={confirm} loading={busy} />
       </View>
     </View>
   );
@@ -650,6 +710,27 @@ const styles = StyleSheet.create({
   form: {
     gap: Spacing.md,
     maxWidth: 560,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
+  },
+  legalLink: {
+    color: Colors.text,
+    fontSize: 15,
+    textDecorationLine: 'underline',
+  },
+  dangerTitle: {
+    color: '#FF8A80',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: Spacing.lg,
+  },
+  dangerButton: {
+    alignSelf: 'flex-start',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#FF8A80',
+    borderRadius: 23,
   },
   formTitle: {
     color: Colors.text,

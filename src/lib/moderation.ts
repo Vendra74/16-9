@@ -2,6 +2,7 @@ import { Alert } from 'react-native';
 
 import { blockUser, report } from '@/lib/messages';
 import { t } from '@/lib/i18n';
+import { supabase } from '@/lib/supabase';
 
 /** O motivo é gravado sempre em português, para a equipe ler; na tela aparece traduzido. */
 const reasons = () => [
@@ -19,6 +20,8 @@ export function askReport(target: { userId?: string; postId?: string; messageId?
       onPress: async () => {
         try {
           await report(target, reason.value);
+          // Avisa a equipe por push; não espera nem atrapalha a confirmação.
+          supabase.functions.invoke('safety', { body: { action: 'report' } }).catch(() => {});
           Alert.alert(t('Denúncia enviada'), t('Obrigado por avisar.'));
         } catch {
           Alert.alert(t('Não foi possível enviar'), t('Confira a internet e tente de novo.'));
