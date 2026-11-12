@@ -7,6 +7,8 @@ export type FeedPost = Gear & {
   id: string;
   user_id: string;
   image_path: string;
+  /** Carrossel: as fotos depois da primeira, em ordem. Vazio na maioria dos posts. */
+  extra_images: string[];
   width: number;
   height: number;
   title: string;
@@ -31,11 +33,19 @@ export type FeedPost = Gear & {
 };
 
 const COLUMNS =
-  'id, user_id, image_path, width, height, title, location, camera, lens, focal_length, aperture, shutter, iso, created_at, kind, status, video_url, duration, ' +
+  'id, user_id, image_path, extra_images, width, height, title, location, camera, lens, focal_length, aperture, shutter, iso, created_at, kind, status, video_url, duration, ' +
   'like_count, comment_count, my_like:likes(user_id), author:profiles!posts_user_id_fkey(username, display_name, specialty, avatar_url)';
 
 export function postImageUrl(post: Pick<FeedPost, 'image_path'>) {
   return publicUrl('posts', post.image_path);
+}
+
+/** Um post leva um vídeo ou até este tanto de fotos. */
+export const MAX_PHOTOS = 10;
+
+/** Todas as fotos do post, na ordem: a principal e as do carrossel. */
+export function postImageUrls(post: Pick<FeedPost, 'image_path' | 'extra_images'>) {
+  return [post.image_path, ...(post.extra_images ?? [])].map((path) => publicUrl('posts', path));
 }
 
 export async function fetchFeed(limit = 50) {
@@ -60,8 +70,44 @@ export async function fetchUserPosts(userId: string) {
   return data;
 }
 
+/** Tira o que atrapalha o filtro do banco (curingas e separadores). */
+function clean(query: string) {
+  return query.trim().replace(/[%_,()"\\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Explorar: os trabalhos mais curtidos ("top") ou os mais novos ("recent"). */
+export async function fetchExplore(sort: 'top' | 'recent', limit = 60) {
+  let req = supabase.from('posts').select(COLUMNS).eq('status', 'ready');
+  if (sort === 'top') req = req.order('like_count', { ascending: false });
+  const { data, error } = await req
+    .order('created_at', { ascending: false })
+    .limit(limit)
+    .overrideTypes<FeedPost[], { merge: false }>();
+  if (error) throw error;
+  return data;
+}
+
+/** Busca trabalhos pelo título, lugar ou equipamento. */
+export async function searchPosts(query: string, limit = 40) {
+  const q = clean(query);
+  if (!q) return [];
+  const like = `ilike.%${q}%`;
+  const { data, error } = await supabase
+    .from('posts')
+    .select(COLUMNS)
+    .eq('status', 'ready')
+    .or(`title.${like},location.${like},camera.${like},lens.${like}`)
+    .order('like_count', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit)
+    .overrideTypes<FeedPost[], { merge: false }>();
+  if (error) throw error;
+  return data;
+}
+
 export type NewPost = Gear & {
   image_path: string;
+  extra_images?: string[];
   width: number;
   height: number;
   title: string;
@@ -77,11 +123,11 @@ export async function createPost(post: NewPost) {
   return data.id;
 }
 
-export async function deletePost(post: Pick<FeedPost, 'id' | 'image_path' | 'kind'>) {
+export async function deletePost(post: Pick<FeedPost, 'id' | 'image_path' | 'kind'> & { extra_images?: string[] }) {
   // O vídeo sai do Mux primeiro; se falhar, o post continua e dá para tentar de novo.
   if (post.kind === 'video') await releaseVideo(post.id);
   const { error } = await supabase.from('posts').delete().eq('id', post.id);
   if (error) throw error;
   // A imagem sai depois; se falhar, só fica um arquivo órfão no Storage.
-  await supabase.storage.from('posts').remove([post.image_path]);
+  await supabase.storage.from('posts').remove([post.image_path, ...(post.extra_images ?? [])]);
 }

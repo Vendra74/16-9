@@ -14,10 +14,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
+import { ClapperButton } from '@/components/clapper-button';
 import { Button, FormMessage } from '@/components/form';
 import { SendIcon } from '@/components/rail-icons';
 import { Colors, Spacing } from '@/constants/theme';
-import { addComment, COMMENT_MAX, deleteComment, fetchComments, type Comment } from '@/lib/comments';
+import {
+  addComment,
+  COMMENT_MAX,
+  deleteComment,
+  fetchComments,
+  likeComment,
+  threaded,
+  unlikeComment,
+  type Comment,
+} from '@/lib/comments';
 import { askBlock, askReport } from '@/lib/moderation';
 import type { FeedPost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
@@ -71,6 +81,9 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** O comentário que a pessoa está respondendo. */
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const input = useRef<React.ComponentRef<typeof TextInput>>(null);
   const list = useRef<FlatList<Comment>>(null);
 
   useEffect(() => {
@@ -93,11 +106,13 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
     setSending(true);
     setError(null);
     try {
-      const created = await addComment(post.id, body);
+      const created = await addComment(post.id, body, replyingTo?.id);
       setComments((rows) => [...(rows ?? []), created]);
       setText('');
       onCountChange(1);
-      setTimeout(() => list.current?.scrollToEnd({ animated: true }), 50);
+      // Comentário novo vai para o fim; resposta fica junto do comentário, que já está na tela.
+      if (!replyingTo) setTimeout(() => list.current?.scrollToEnd({ animated: true }), 50);
+      setReplyingTo(null);
     } catch {
       setError('Não foi possível comentar. Confira a internet e tente de novo.');
     } finally {
@@ -108,10 +123,42 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
   async function remove(comment: Comment) {
     try {
       await deleteComment(comment.id);
-      setComments((rows) => rows?.filter((c) => c.id !== comment.id) ?? null);
-      onCountChange(-1);
+      // As respostas de um comentário apagado saem junto com ele.
+      const gone = (comments ?? []).filter((c) => c.id === comment.id || c.parent_id === comment.id).length;
+      setComments((rows) => rows?.filter((c) => c.id !== comment.id && c.parent_id !== comment.id) ?? null);
+      if (replyingTo?.id === comment.id) setReplyingTo(null);
+      onCountChange(-Math.max(1, gone));
     } catch {
       Alert.alert('Não foi possível apagar', 'Confira a internet e tente de novo.');
+    }
+  }
+
+  function reply(comment: Comment) {
+    setReplyingTo(comment);
+    input.current?.focus();
+  }
+
+  /** Curtida otimista: a claquete bate na hora e volta se o servidor recusar. */
+  function setLiked(id: string, liked: boolean) {
+    setComments(
+      (rows) =>
+        rows?.map((c) =>
+          c.id === id
+            ? { ...c, my_like: liked ? [{ user_id: me }] : [], like_count: Math.max(0, c.like_count + (liked ? 1 : -1)) }
+            : c,
+        ) ?? null,
+    );
+  }
+
+  async function toggleLike(comment: Comment) {
+    if (!me) return;
+    const liked = comment.my_like.length === 0;
+    setLiked(comment.id, liked);
+    try {
+      if (liked) await likeComment(comment.id);
+      else await unlikeComment(comment.id, me);
+    } catch {
+      setLiked(comment.id, !liked);
     }
   }
 
@@ -166,7 +213,7 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
         <FlatList
           ref={list}
           style={styles.list}
-          data={comments}
+          data={threaded(comments)}
           keyExtractor={(c) => c.id}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={comments.length === 0 ? styles.center : styles.listContent}
@@ -175,10 +222,10 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
             const name = item.author?.display_name || item.author?.username || 'Alguém';
             return (
               <Pressable
-                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.row, item.parent_id && styles.reply, pressed && styles.pressed]}
                 onLongPress={() => options(item)}
                 accessibilityHint="Segure para ver as opções">
-                <Avatar name={name} url={item.author?.avatar_url} size={30} />
+                <Avatar name={name} url={item.author?.avatar_url} size={item.parent_id ? 24 : 30} />
                 <View style={styles.flex}>
                   <Text style={styles.meta}>
                     <Text style={styles.name}>{name}</Text>
@@ -186,7 +233,17 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
                     {timeLabel(item.created_at)}
                   </Text>
                   <Text style={styles.body}>{item.body}</Text>
+                  <Pressable onPress={() => reply(item)} hitSlop={8} accessibilityRole="button" style={styles.replyLink}>
+                    <Text style={styles.replyText}>Responder</Text>
+                  </Pressable>
                 </View>
+                <ClapperButton
+                  inline
+                  size={16}
+                  liked={item.my_like.length > 0}
+                  count={item.like_count}
+                  onToggle={() => toggleLike(item)}
+                />
               </Pressable>
             );
           }}
@@ -194,10 +251,21 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
       )}
 
       <FormMessage text={error} />
+      {replyingTo ? (
+        <View style={styles.replying}>
+          <Text style={styles.replyingText} numberOfLines={1}>
+            Respondendo a {replyingTo.author?.display_name || replyingTo.author?.username || 'alguém'}
+          </Text>
+          <Pressable onPress={() => setReplyingTo(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cancelar a resposta">
+            <Text style={styles.replyingCancel}>Cancelar</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
         <TextInput
+          ref={input}
           style={styles.input}
-          placeholder="Escreva um comentário"
+          placeholder={replyingTo ? 'Escreva uma resposta' : 'Escreva um comentário'}
           placeholderTextColor={Colors.textMuted}
           value={text}
           onChangeText={setText}
@@ -273,6 +341,36 @@ const styles = StyleSheet.create({
   },
   pressed: {
     backgroundColor: Colors.surfaceRaised,
+  },
+  reply: {
+    marginLeft: 34,
+  },
+  replyLink: {
+    alignSelf: 'flex-start',
+    marginTop: 3,
+  },
+  replyText: {
+    color: Colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  replying: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    paddingTop: Spacing.xs,
+    paddingRight: 4,
+  },
+  replyingText: {
+    flex: 1,
+    color: Colors.textSecondary,
+    fontSize: 12,
+  },
+  replyingCancel: {
+    color: Colors.text,
+    fontSize: 12,
+    fontWeight: '700',
   },
   flex: {
     flex: 1,

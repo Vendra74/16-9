@@ -5,6 +5,7 @@ import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
 type Listener = (message: Message) => void;
+type DeleteListener = (id: string) => void;
 
 type InboxState = {
   conversations: Conversation[] | null;
@@ -12,6 +13,8 @@ type InboxState = {
   refresh: () => Promise<void>;
   /** Recebe cada mensagem nova (de qualquer conversa) assim que chega. */
   onMessage: (listener: Listener) => () => void;
+  /** Recebe o id de cada mensagem apagada. */
+  onDeleted: (listener: DeleteListener) => () => void;
 };
 
 const InboxContext = createContext<InboxState>({
@@ -19,6 +22,7 @@ const InboxContext = createContext<InboxState>({
   unreadCount: 0,
   refresh: async () => {},
   onMessage: () => () => {},
+  onDeleted: () => () => {},
 });
 
 /** Lista de conversas e contagem de não lidas, atualizadas em tempo real. */
@@ -27,6 +31,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
   const me = session?.user.id;
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const listeners = useRef(new Set<Listener>());
+  const deleteListeners = useRef(new Set<DeleteListener>());
 
   const refresh = useCallback(async () => {
     try {
@@ -47,6 +52,10 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         const message = payload.new as Message;
         listeners.current.forEach((listener) => listener(message));
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
+        const id = (payload.old as { id?: string }).id;
+        if (id) deleteListeners.current.forEach((listener) => listener(id));
+      })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, () => {
         refresh();
       })
@@ -63,9 +72,16 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const onDeleted = useCallback((listener: DeleteListener) => {
+    deleteListeners.current.add(listener);
+    return () => {
+      deleteListeners.current.delete(listener);
+    };
+  }, []);
+
   const unreadCount = me ? (conversations ?? []).filter((c) => isUnread(c, me)).length : 0;
 
-  return <InboxContext value={{ conversations, unreadCount, refresh, onMessage }}>{children}</InboxContext>;
+  return <InboxContext value={{ conversations, unreadCount, refresh, onMessage, onDeleted }}>{children}</InboxContext>;
 }
 
 export function useInbox() {

@@ -12,6 +12,7 @@ import { Button, Field, FormMessage } from '@/components/form';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
 import { cropAndResize, publicUrl, uploadJpeg } from '@/lib/images';
+import { fetchBlocked, unblockUser, type MiniProfile } from '@/lib/messages';
 import { deletePost, fetchUserPosts, postImageUrl, type FeedPost } from '@/lib/posts';
 import {
   fetchProfile,
@@ -24,8 +25,9 @@ import {
 import { unregisterFromPush } from '@/lib/push';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
+import { openViewer } from '@/lib/viewer';
 
-type Panel = 'works' | 'edit' | 'feedback';
+type Panel = 'works' | 'edit' | 'feedback' | 'blocked';
 
 export default function ProfileScreen() {
   const { session } = useSession();
@@ -135,6 +137,11 @@ export default function ProfileScreen() {
             title="Enviar feedback"
             onPress={() => setPanel(panel === 'feedback' ? 'works' : 'feedback')}
           />
+          <Button
+            variant={panel === 'blocked' ? 'primary' : 'ghost'}
+            title="Bloqueados"
+            onPress={() => setPanel(panel === 'blocked' ? 'works' : 'blocked')}
+          />
           <Button variant="ghost" title="Sair" onPress={async () => {
               await unregisterFromPush();
               await supabase.auth.signOut();
@@ -159,6 +166,8 @@ export default function ProfileScreen() {
           />
         ) : panel === 'feedback' ? (
           <FeedbackForm onSent={() => setPanel('works')} />
+        ) : panel === 'blocked' ? (
+          <BlockedList />
         ) : (
           <MyWorks userId={profile.id} />
         )}
@@ -225,12 +234,19 @@ function MyWorks({ userId }: { userId: string }) {
       </Text>
       <View style={styles.gridItems}>
         {posts.map((post) => (
-          <Pressable key={post.id} style={styles.tile} onLongPress={() => confirmDelete(post)} delayLongPress={350}>
+          <Pressable
+            key={post.id}
+            style={styles.tile}
+            onPress={() => openViewer(posts, post.id)}
+            onLongPress={() => confirmDelete(post)}
+            delayLongPress={350}>
             <Image source={{ uri: postImageUrl(post) }} style={styles.tileImage} contentFit="cover" transition={200} />
             {post.kind === 'video' ? (
               <Text style={styles.tileTag}>
                 {post.status === 'processing' ? 'Processando…' : post.status === 'failed' ? 'Falhou' : 'Vídeo'}
               </Text>
+            ) : post.extra_images?.length ? (
+              <Text style={styles.tileTag}>{post.extra_images.length + 1} fotos</Text>
             ) : null}
             <Text style={styles.tileTitle} numberOfLines={1}>
               {post.title || post.location || settingsLine(post) || ' '}
@@ -238,7 +254,66 @@ function MyWorks({ userId }: { userId: string }) {
           </Pressable>
         ))}
       </View>
-      <Text style={styles.hint}>Segure um trabalho para apagar.</Text>
+      <Text style={styles.hint}>Toque para abrir. Segure um trabalho para apagar.</Text>
+    </View>
+  );
+}
+
+/** As pessoas que você bloqueou, com a opção de desbloquear. */
+function BlockedList() {
+  const [people, setPeople] = useState<MiniProfile[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchBlocked()
+      .then((list) => active && setPeople(list))
+      .catch(() => active && setError(true));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function unblock(person: MiniProfile) {
+    try {
+      await unblockUser(person.id);
+      setPeople((list) => list?.filter((p) => p.id !== person.id) ?? null);
+    } catch {
+      Alert.alert('Não foi possível desbloquear', 'Confira a internet e tente de novo.');
+    }
+  }
+
+  return (
+    <View style={styles.form}>
+      <Text style={styles.formTitle}>Bloqueados</Text>
+      {people === null ? (
+        error ? (
+          <FormMessage text="Não foi possível carregar a lista." />
+        ) : (
+          <ApertureLoader size={32} />
+        )
+      ) : people.length === 0 ? (
+        <Text style={styles.emptyText}>Você não bloqueou ninguém.</Text>
+      ) : (
+        <>
+          <Text style={styles.emptyText}>
+            Ao desbloquear, você volta a ver os trabalhos da pessoa e os dois podem trocar mensagens de novo.
+          </Text>
+          {people.map((person) => {
+            const name = person.display_name || person.username;
+            return (
+              <View key={person.id} style={styles.blockedRow}>
+                <Avatar name={name} url={person.avatar_url} size={36} />
+                <View style={styles.col}>
+                  <Text style={styles.blockedName}>{name}</Text>
+                  <Text style={styles.handle}>@{person.username}</Text>
+                </View>
+                <Button variant="ghost" title="Desbloquear" onPress={() => unblock(person)} />
+              </View>
+            );
+          })}
+        </>
+      )}
     </View>
   );
 }
@@ -495,6 +570,16 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 11,
     marginTop: Spacing.xs,
+  },
+  blockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  blockedName: {
+    color: Colors.text,
+    fontSize: 15,
+    fontWeight: '600',
   },
   form: {
     gap: Spacing.md,

@@ -98,23 +98,41 @@ type Props = {
   count: number;
   onToggle: () => void;
   size?: number;
+  /** Com isto, tocar no número abre a lista de quem curtiu. */
+  onCountPress?: () => void;
+  /** Versão de linha (nos comentários): número ao lado, e some quando é zero. */
+  inline?: boolean;
 };
 
 /** Curtir com uma claquete: ela abre e bate quando a pessoa curte. */
-export function ClapperButton({ liked, count, onToggle, size = 26 }: Props) {
+export function ClapperButton({ liked, count, onToggle, size = 26, onCountPress, inline }: Props) {
+  const number = <Text style={[styles.count, inline && styles.countInline]}>{formatCount(count)}</Text>;
   return (
-    <Pressable
-      onPress={onToggle}
-      hitSlop={8}
-      style={styles.button}
-      accessibilityRole="button"
-      accessibilityState={{ selected: liked }}
-      accessibilityLabel={liked ? `Curtido, ${count} curtidas. Tocar para desfazer` : `Curtir, ${count} curtidas`}>
-      <View>
-        <ClapperIcon liked={liked} size={size} />
-      </View>
-      <Text style={styles.count}>{formatCount(count)}</Text>
-    </Pressable>
+    <View style={[styles.button, inline && styles.inline]}>
+      <Pressable
+        onPress={onToggle}
+        hitSlop={8}
+        style={!inline && !onCountPress ? styles.button : undefined}
+        accessibilityRole="button"
+        accessibilityState={{ selected: liked }}
+        accessibilityLabel={liked ? `Curtido, ${count} curtidas. Tocar para desfazer` : `Curtir, ${count} curtidas`}>
+        <View>
+          <ClapperIcon liked={liked} size={size} />
+        </View>
+        {!inline && !onCountPress ? number : null}
+      </Pressable>
+      {inline ? (
+        count > 0 ? number : null
+      ) : onCountPress ? (
+        <Pressable
+          onPress={count > 0 ? onCountPress : onToggle}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={count > 0 ? 'Ver quem curtiu' : 'Curtir'}>
+          {number}
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -123,6 +141,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
     minWidth: 40,
+  },
+  inline: {
+    flexDirection: 'row',
+    minWidth: 0,
+    gap: 4,
+  },
+  countInline: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    textShadowRadius: 0,
   },
   count: {
     color: Colors.text,

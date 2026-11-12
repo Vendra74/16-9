@@ -5,15 +5,16 @@ import assert from 'node:assert/strict';
 const envs = { MUX_TOKEN_ID:'tid', MUX_TOKEN_SECRET:'tsec', MUX_WEBHOOK_SECRET:'whsec', SUPABASE_URL:'https://sb.test', SUPABASE_SERVICE_ROLE_KEY:'svc' };
 globalThis.Deno = { env: { get: (n) => envs[n] }, serve: () => {} };
 const A='11111111-1111-1111-1111-111111111111';
-let posts, calls;
-const reset = () => { calls=[]; posts=[{id:'aaaaaaaa-0000-0000-0000-000000000001', user_id:A, mux_upload_id:'up1', mux_asset_id:null, status:'processing'}]; };
+let posts, messages, calls;
+const reset = () => { messages=[{id:'bbbbbbbb-0000-0000-0000-000000000001', sender_id:A, mux_upload_id:'upM', mux_asset_id:null, status:'processing'}]; calls=[]; posts=[{id:'aaaaaaaa-0000-0000-0000-000000000001', user_id:A, mux_upload_id:'up1', mux_asset_id:null, status:'processing'}]; };
 globalThis.fetch = async (url, init={}) => {
   const u = new URL(url); const method = init.method ?? 'GET'; calls.push(`${method} ${u.host}${u.pathname}${u.search}`);
   const J = (b, s=200) => new Response(JSON.stringify(b), {status:s});
   if (u.host==='sb.test' && u.pathname==='/auth/v1/user') return init.headers.authorization==='Bearer good' ? J({id:A}) : J({},401);
-  if (u.host==='sb.test' && u.pathname==='/rest/v1/posts') {
+  if (u.host==='sb.test' && (u.pathname==='/rest/v1/posts' || u.pathname==='/rest/v1/messages')) {
+    const table = u.pathname.endsWith('posts') ? posts : messages;
     const f = [...u.searchParams].filter(([k])=>k!=='select').map(([k,v])=>[k, v.replace(/^eq\./,'')]);
-    const rows = posts.filter(p => f.every(([k,v]) => String(p[k])===v));
+    const rows = table.filter(p => f.every(([k,v]) => String(p[k])===v));
     if (method==='PATCH') rows.forEach(r => Object.assign(r, JSON.parse(init.body)));
     return J(rows);
   }
@@ -59,4 +60,17 @@ reset(); r = await post({authorization:'Bearer good'}, {action:'delete', post_id
 reset(); posts[0].user_id='22222222-2222-2222-2222-222222222222'; r = await post({authorization:'Bearer good'}, {action:'delete', post_id:posts[0].id}); assert.equal(r.status,404);
 r = await post({authorization:'Bearer good'}, {action:'delete', post_id:"x' or 1=1"}); assert.equal(r.status,400);
 assert.equal(await verifySignature('garbage','{}','whsec',1), false);
+// vídeo de mensagem: mesmo caminho, na tabela messages
+reset(); await hook({type:'video.asset.created', data:{id:'asM', upload_id:'upM'}}); assert.equal(messages[0].mux_asset_id,'asM'); assert.equal(posts[0].mux_asset_id,null);
+await hook({type:'video.asset.ready', data:{id:'asM', upload_id:'upM', passthrough:A, duration:12, aspect_ratio:'16:9', playback_ids:[{id:'pbM', policy:'public'}]}});
+assert.equal(messages[0].status,'ready'); assert.equal(messages[0].video_url,'https://stream.mux.com/pbM.m3u8'); assert.equal(posts[0].status,'processing');
+assert.ok(!calls.some(c=>c.startsWith('DELETE')));
+reset(); await hook({type:'video.asset.ready', data:{id:'asM2', upload_id:'upM', passthrough:A, duration:10, aspect_ratio:'9:16', playback_ids:[{id:'pb', policy:'public'}]}});
+assert.equal(messages[0].status,'failed'); assert.ok(calls.includes('DELETE api.mux.com/video/v1/assets/asM2'));
+reset(); await hook({type:'video.asset.ready', data:{id:'asM3', upload_id:'upM', passthrough:'22222222-2222-2222-2222-222222222222', duration:10, aspect_ratio:'16:9', playback_ids:[{id:'pb', policy:'public'}]}});
+assert.equal(messages[0].status,'processing'); assert.ok(calls.includes('DELETE api.mux.com/video/v1/assets/asM3'));
+reset(); await hook({type:'video.upload.cancelled', data:{id:'upM'}}); assert.equal(messages[0].status,'failed');
+// apagar vídeo de mensagem
+reset(); messages[0].mux_asset_id='asMD'; r = await post({authorization:'Bearer good'}, {action:'delete', message_id:messages[0].id}); assert.equal(r.status,200); assert.ok(calls.includes('DELETE api.mux.com/video/v1/assets/asMD'));
+reset(); messages[0].sender_id='22222222-2222-2222-2222-222222222222'; r = await post({authorization:'Bearer good'}, {action:'delete', message_id:messages[0].id}); assert.equal(r.status,404);
 console.log('all function tests passed');

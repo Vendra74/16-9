@@ -35,6 +35,23 @@ export async function fetchProfile(userId: string) {
   return data;
 }
 
+/** Busca criadores pelo nome, @, especialidade ou cidade. */
+export async function searchCreators(query: string, me: string, limit = 12) {
+  const q = query.trim().replace(/[%_,()"\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!q) return [];
+  const like = `ilike.%${q}%`;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, specialty, city, bio, avatar_url')
+    .neq('id', me)
+    .or(`username.${like},display_name.${like},specialty.${like},city.${like}`)
+    .order('username')
+    .limit(limit)
+    .overrideTypes<Profile[], { merge: false }>();
+  if (error) throw error;
+  return data;
+}
+
 export async function updateProfile(userId: string, changes: ProfileChanges) {
   const { error } = await supabase.from('profiles').update(changes).eq('id', userId);
   if (error) {

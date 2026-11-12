@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
@@ -9,7 +9,7 @@ import { ClapperButton } from '@/components/clapper-button';
 import { CommentIcon, MessagesIcon, MoreIcon, SendIcon, SoundIcon } from '@/components/rail-icons';
 import { Colors, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
-import { postImageUrl, type FeedPost } from '@/lib/posts';
+import { postImageUrl, postImageUrls, type FeedPost } from '@/lib/posts';
 
 /**
  * Um trabalho no feed, ocupando a moldura 16:9 inteira.
@@ -26,15 +26,23 @@ type Props = {
   onToggleSound: () => void;
   liked: boolean;
   onLike: () => void;
+  /** Toque no número de curtidas: abre a lista de quem curtiu. */
+  onLikers: () => void;
+  /** Toque na foto ou no nome de quem publicou: abre o perfil. */
+  onAuthor: () => void;
   onComment: () => void;
   onMessage: () => void;
   onShare: () => void;
   onMore: () => void;
 };
 
-export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onComment, onMessage, onShare, onMore }: Props) {
+export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onLikers, onAuthor, onComment, onMessage, onShare, onMore }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
+  /** Carrossel: qual foto está na moldura. */
+  const [page, setPage] = useState(0);
+  const images = postImageUrls(post);
+  const carousel = post.kind !== 'video' && images.length > 1;
   const name = post.author?.display_name || post.author?.username || 'Alguém';
   const settings = settingsLine(post);
   const gear = [post.camera, post.lens, settings].filter(Boolean).join(' · ');
@@ -44,15 +52,47 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
 
   return (
     <Pressable style={[styles.frame, { width, height }]} onPress={() => setShowInfo((v) => !v)}>
-      <Image
-        source={{ uri: postImageUrl(post) }}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        transition={400}
-        recyclingKey={post.id}
-        onLoad={() => setLoaded(true)}
-        accessibilityLabel={post.title || `Foto de ${name}`}
-      />
+      {carousel ? (
+        // Carrossel: deslizar de lado troca a foto; o toque continua mostrando ou escondendo as informações.
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          style={StyleSheet.absoluteFill}
+          scrollEventThrottle={32}
+          onScroll={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width)))}>
+          {images.map((uri, index) => (
+            <Pressable key={uri} onPress={() => setShowInfo((v) => !v)} accessible={false}>
+              <Image
+                source={{ uri }}
+                style={{ width, height }}
+                contentFit="cover"
+                transition={index === 0 ? 400 : 0}
+                onLoad={index === 0 ? () => setLoaded(true) : undefined}
+                accessibilityLabel={`${post.title || `Foto de ${name}`}, ${index + 1} de ${images.length}`}
+              />
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : (
+        <Image
+          source={{ uri: postImageUrl(post) }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={400}
+          recyclingKey={post.id}
+          onLoad={() => setLoaded(true)}
+          accessibilityLabel={post.title || `Foto de ${name}`}
+        />
+      )}
+
+      {carousel ? (
+        <View style={styles.counter} pointerEvents="none">
+          <Text style={styles.counterText}>
+            {Math.min(page, images.length - 1) + 1}/{images.length}
+          </Text>
+        </View>
+      ) : null}
 
       {/* A capa fica por baixo; o vídeo só é montado no post que está na tela. */}
       {playable && active && post.video_url ? <PostVideo uri={post.video_url} muted={muted} width={width} height={height} /> : null}
@@ -75,14 +115,22 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
 
       {showInfo && (
         <>
-          <View style={styles.top}>
-            <Avatar name={name} url={post.author?.avatar_url} size={34} />
-            <View style={styles.flex}>
-              <Text style={styles.author}>{name}</Text>
-              <Text style={styles.meta}>
-                {[post.author && `@${post.author.username}`, post.author?.specialty].filter(Boolean).join(' · ')}
-              </Text>
-            </View>
+          <View style={styles.top} pointerEvents="box-none">
+            <Pressable
+              style={styles.authorRow}
+              onPress={onAuthor}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Ver o perfil de ${name}`}>
+              <Avatar name={name} url={post.author?.avatar_url} size={34} />
+              <View style={styles.shrink}>
+                <Text style={styles.author}>{name}</Text>
+                <Text style={styles.meta}>
+                  {[post.author && `@${post.author.username}`, post.author?.specialty].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </Pressable>
+            <View style={styles.flex} pointerEvents="none" />
             {playable ? (
               <Pressable
                 onPress={onToggleSound}
@@ -99,14 +147,14 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
             ) : null}
           </View>
 
-          <View style={[styles.bottom, !hasCaption && styles.bottomBare]}>
-            <View style={styles.caption}>
+          <View style={[styles.bottom, !hasCaption && styles.bottomBare]} pointerEvents="box-none">
+            <View style={styles.caption} pointerEvents="none">
               {post.title ? <Text style={styles.title}>{post.title}</Text> : null}
               {post.location ? <Text style={styles.meta}>{post.location}</Text> : null}
               {gear ? <Text style={styles.gear}>{gear}</Text> : null}
             </View>
-            <View style={styles.actions}>
-              <ClapperButton liked={liked} count={post.like_count} onToggle={onLike} size={24} />
+            <View style={styles.actions} pointerEvents="box-none">
+              <ClapperButton liked={liked} count={post.like_count} onToggle={onLike} onCountPress={onLikers} size={24} />
               <Pressable
                 style={styles.action}
                 onPress={onComment}
@@ -174,6 +222,30 @@ const shadow = {
 } as const;
 
 const styles = StyleSheet.create({
+  counter: {
+    position: 'absolute',
+    top: Spacing.sm,
+    alignSelf: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  counterText: {
+    color: Colors.text,
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  shrink: {
+    flexShrink: 1,
+  },
+  authorRow: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   video: {
     position: 'absolute',
     top: 0,

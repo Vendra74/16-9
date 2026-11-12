@@ -55,8 +55,17 @@
         "expo-image-picker",
         {
           "photosPermission": "O 16:9 abre suas fotos e vídeos para você publicar trabalhos e escolher a foto de perfil.",
-          "cameraPermission": false,
-          "microphonePermission": false
+          "cameraPermission": "O 16:9 usa a câmera para você gravar vídeos e publicar.",
+          "microphonePermission": "O 16:9 usa o microfone para gravar o som dos seus vídeos."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O 16:9 usa a câmera para você gravar vídeos e publicar.",
+          "microphonePermission": "O 16:9 usa o microfone para gravar o som dos seus vídeos.",
+          "recordAudioAndroid": true,
+          "barcodeScannerEnabled": false
         }
       ],
       [

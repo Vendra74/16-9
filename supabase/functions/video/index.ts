@@ -3,7 +3,9 @@
 // Faz a ponte entre o app e o Mux, que guarda e converte os vídeos:
 //   1. O app pede um endereço de envio          → { action: 'upload' }
 //   2. O Mux avisa quando o vídeo ficou pronto  → webhook (cabeçalho mux-signature)
+//      O vídeo pode ser de um post ou de uma mensagem; as colunas são as mesmas.
 //   3. O app avisa que apagou um post de vídeo  → { action: 'delete', post_id }
+//      ou uma mensagem com vídeo                → { action: 'delete', message_id }
 //
 // Segredos necessários (Edge Functions → Secrets):
 //   MUX_TOKEN_ID, MUX_TOKEN_SECRET, MUX_WEBHOOK_SECRET
@@ -64,11 +66,17 @@ async function deleteAsset(assetId: string) {
 
 // ---------- Banco (PostgREST com a chave de serviço) ----------
 
-type PostRow = { id: string; user_id: string; mux_upload_id: string | null; mux_asset_id: string | null };
+type PostRow = { id: string; mux_upload_id: string | null; mux_asset_id: string | null };
 
-async function db(method: string, query: string, body?: unknown): Promise<PostRow[]> {
+/** Onde um vídeo pode morar, e a coluna que diz de quem ele é. */
+const TABLES = [
+  { name: 'posts', owner: 'user_id' },
+  { name: 'messages', owner: 'sender_id' },
+] as const;
+
+async function db(method: string, query: string, body?: unknown, table = 'posts'): Promise<PostRow[]> {
   const key = env('SUPABASE_SERVICE_ROLE_KEY');
-  const res = await fetch(`${env('SUPABASE_URL')}/rest/v1/posts?${query}`, {
+  const res = await fetch(`${env('SUPABASE_URL')}/rest/v1/${table}?${query}`, {
     method,
     headers: {
       apikey: key,
@@ -82,7 +90,21 @@ async function db(method: string, query: string, body?: unknown): Promise<PostRo
   return res.json();
 }
 
-const COLUMNS = 'select=id,user_id,mux_upload_id,mux_asset_id';
+const COLUMNS = 'select=id,mux_upload_id,mux_asset_id';
+
+/**
+ * Atualiza o post ou a mensagem daquele envio. `ownerId` confere o dono;
+ * `extra` acrescenta filtros. Devolve quantas linhas mudaram.
+ */
+async function patchVideo(uploadId: string, changes: unknown, ownerId?: string, extra = '') {
+  for (const table of TABLES) {
+    const where =
+      `mux_upload_id=eq.${encodeURIComponent(uploadId)}` + (ownerId ? `&${table.owner}=eq.${ownerId}` : '') + extra;
+    const rows = await db('PATCH', where, changes, table.name);
+    if (rows.length > 0) return rows.length;
+  }
+  return 0;
+}
 
 /** Quem está chamando, pelo login do Supabase. `null` se o login não vale. */
 async function currentUser(req: Request): Promise<string | null> {
@@ -118,15 +140,16 @@ async function startUpload(userId: string) {
   return json({ upload_id: data.id, url: data.url });
 }
 
-async function releaseVideo(userId: string, postId: unknown) {
-  if (typeof postId !== 'string' || !UUID.test(postId)) return json({ error: 'bad_post_id' }, 400);
-  const [post] = await db('GET', `${COLUMNS}&id=eq.${postId}&user_id=eq.${userId}`);
-  if (!post) return json({ error: 'not_found' }, 404);
-  if (post.mux_asset_id) {
-    await deleteAsset(post.mux_asset_id);
-  } else if (post.mux_upload_id) {
+/** Apaga no Mux o vídeo de um post ou de uma mensagem de quem está chamando. */
+async function releaseVideo(userId: string, id: unknown, table: (typeof TABLES)[number]) {
+  if (typeof id !== 'string' || !UUID.test(id)) return json({ error: 'bad_id' }, 400);
+  const [row] = await db('GET', `${COLUMNS}&id=eq.${id}&${table.owner}=eq.${userId}`, undefined, table.name);
+  if (!row) return json({ error: 'not_found' }, 404);
+  if (row.mux_asset_id) {
+    await deleteAsset(row.mux_asset_id);
+  } else if (row.mux_upload_id) {
     // Ainda enviando: cancela para o Mux não criar o vídeo depois.
-    await mux('PUT', `/video/v1/uploads/${post.mux_upload_id}/cancel`);
+    await mux('PUT', `/video/v1/uploads/${row.mux_upload_id}/cancel`);
   }
   return json({ ok: true });
 }
@@ -194,7 +217,7 @@ async function handleWebhook(req: Request) {
     // O vídeo foi criado a partir do envio: guarda o id para poder apagar depois.
     case 'video.asset.created': {
       if (data.id && data.upload_id) {
-        await db('PATCH', `mux_upload_id=eq.${encodeURIComponent(data.upload_id)}`, { mux_asset_id: data.id });
+        await patchVideo(data.upload_id, { mux_asset_id: data.id });
       }
       break;
     }
@@ -204,34 +227,38 @@ async function handleWebhook(req: Request) {
       const playback = data.playback_ids?.find((p) => p.policy === 'public');
       const tooLong = (data.duration ?? 0) > MAX_SECONDS;
       const vertical = ratio(data.aspect_ratio) < 1;
-      const where = `mux_upload_id=eq.${encodeURIComponent(data.upload_id)}` + (UUID.test(data.passthrough ?? '') ? `&user_id=eq.${data.passthrough}` : '');
+      const owner = UUID.test(data.passthrough ?? '') ? data.passthrough : undefined;
 
       if (!playback || tooLong || vertical) {
         await deleteAsset(data.id);
-        await db('PATCH', where, { status: 'failed', mux_asset_id: null });
+        await patchVideo(data.upload_id, { status: 'failed', mux_asset_id: null }, owner);
         break;
       }
 
-      const updated = await db('PATCH', where, {
-        status: 'ready',
-        video_url: `https://stream.mux.com/${playback.id}.m3u8`,
-        duration: data.duration ?? null,
-        mux_asset_id: data.id,
-      });
-      // O post foi apagado (ou nunca existiu): não deixa vídeo órfão gerando custo.
-      if (updated.length === 0) await deleteAsset(data.id);
+      const updated = await patchVideo(
+        data.upload_id,
+        {
+          status: 'ready',
+          video_url: `https://stream.mux.com/${playback.id}.m3u8`,
+          duration: data.duration ?? null,
+          mux_asset_id: data.id,
+        },
+        owner,
+      );
+      // O post ou a mensagem foi apagado (ou nunca existiu): não deixa vídeo órfão gerando custo.
+      if (updated === 0) await deleteAsset(data.id);
       break;
     }
 
     case 'video.asset.errored': {
-      if (data.upload_id) await db('PATCH', `mux_upload_id=eq.${encodeURIComponent(data.upload_id)}`, { status: 'failed' });
+      if (data.upload_id) await patchVideo(data.upload_id, { status: 'failed' });
       break;
     }
 
     // Nestes dois, o id do aviso é o próprio id do envio.
     case 'video.upload.errored':
     case 'video.upload.cancelled': {
-      if (data.id) await db('PATCH', `mux_upload_id=eq.${encodeURIComponent(data.id)}&status=eq.processing`, { status: 'failed' });
+      if (data.id) await patchVideo(data.id, { status: 'failed' }, undefined, '&status=eq.processing');
       break;
     }
   }
@@ -253,7 +280,11 @@ export async function handler(req: Request): Promise<Response> {
 
     const body = await req.json().catch(() => ({}));
     if (body.action === 'upload') return await startUpload(userId);
-    if (body.action === 'delete') return await releaseVideo(userId, body.post_id);
+    if (body.action === 'delete') {
+      return body.message_id !== undefined
+        ? await releaseVideo(userId, body.message_id, TABLES[1])
+        : await releaseVideo(userId, body.post_id, TABLES[0]);
+    }
     return json({ error: 'unknown_action' }, 400);
   } catch (error) {
     // Erro nosso: responde 500 para o Mux tentar o aviso de novo mais tarde.
