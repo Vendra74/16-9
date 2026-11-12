@@ -263,4 +263,5 @@ export const fr: Record<string, string> = {
   'Bloquear': 'Bloquer',
   'Não foi possível bloquear': 'Blocage impossible',
   'Esse @ já está em uso.': 'Ce @ est déjà utilisé.',
+  'Avisos': 'Alertes',
 };

@@ -1,4 +1,5 @@
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
@@ -19,6 +20,8 @@ export default function RootLayout() {
     <SessionProvider>
       <ThemeProvider value={theme}>
         <StatusBar hidden />
+        {/* Android: esconde a barra de botões do sistema; um deslize na borda a mostra por um instante. */}
+        <NavigationBar hidden style="light" />
         <RootNavigator />
         <SplashOverlay />
       </ThemeProvider>

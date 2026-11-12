@@ -4,7 +4,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -194,7 +193,7 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
   return (
     <KeyboardAvoidingView
       style={[styles.panel, { paddingRight: Math.max(insets.right, Spacing.md) }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior="padding">
       <View style={styles.header}>
         <Text style={styles.title}>{t('Comentários')}</Text>
         <Button variant="ghost" title={t('Fechar')} onPress={onClose} />
