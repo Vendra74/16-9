@@ -4,6 +4,7 @@ import { PanResponder, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, FrameRatio } from '@/constants/theme';
 import type { CropRect } from '@/lib/images';
+import { t } from '@/lib/i18n';
 
 type Props = {
   uri: string;
@@ -91,7 +92,7 @@ export function CropFrame({ uri, imageWidth, imageHeight, width, onCropChange }:
       </View>
       {movable ? (
         <View pointerEvents="none" style={styles.hintBox}>
-          <Text style={styles.hint}>Arraste para enquadrar</Text>
+          <Text style={styles.hint}>{t('Arraste para enquadrar')}</Text>
         </View>
       ) : null}
     </View>

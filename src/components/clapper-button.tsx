@@ -13,6 +13,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 import { Colors } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 
 /** Ângulo da haste de cima: entreaberta quando não curtido, fechada quando curtido. */
 const OPEN = -14;
@@ -89,7 +90,8 @@ function ClapperIcon({ liked, size }: { liked: boolean; size: number }) {
 }
 
 function formatCount(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace('.0', '').replace('.', ',')} mil`;
+  // "1,2 mil" em português; cada idioma traz o seu formato e o separador decimal.
+  if (n >= 1000) return t('{n} mil', { n: (n / 1000).toFixed(1).replace('.0', '').replace('.', t(',')) });
   return String(n);
 }
 
@@ -115,7 +117,7 @@ export function ClapperButton({ liked, count, onToggle, size = 26, onCountPress,
         style={!inline && !onCountPress ? styles.button : undefined}
         accessibilityRole="button"
         accessibilityState={{ selected: liked }}
-        accessibilityLabel={liked ? `Curtido, ${count} curtidas. Tocar para desfazer` : `Curtir, ${count} curtidas`}>
+        accessibilityLabel={liked ? t('Curtido, {n} curtidas. Tocar para desfazer', { n: count }) : t('Curtir, {n} curtidas', { n: count })}>
         <View>
           <ClapperIcon liked={liked} size={size} />
         </View>
@@ -128,7 +130,7 @@ export function ClapperButton({ liked, count, onToggle, size = 26, onCountPress,
           onPress={count > 0 ? onCountPress : onToggle}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={count > 0 ? 'Ver quem curtiu' : 'Curtir'}>
+          accessibilityLabel={count > 0 ? t('Ver quem curtiu') : t('Curtir')}>
           {number}
         </Pressable>
       ) : null}

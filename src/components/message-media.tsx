@@ -10,6 +10,7 @@ import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { messageImageUrl } from '@/lib/images';
 import type { Media, Message } from '@/lib/messages';
 import { MAX_VIDEO_SECONDS } from '@/lib/video';
+import { t } from '@/lib/i18n';
 
 const THUMB_WIDTH = 240;
 const THUMB_MAX_HEIGHT = 200;
@@ -46,11 +47,11 @@ export async function pickMedia(): Promise<Media | null> {
   if (asset.type === 'video') {
     const refuse = (title: string, message: string) => setTimeout(() => Alert.alert(title, message), 500);
     if ((asset.duration ?? 0) > (MAX_VIDEO_SECONDS + 0.5) * 1000) {
-      refuse('Vídeo longo demais', `Nas mensagens o vídeo também precisa ter até ${MAX_VIDEO_SECONDS} segundos.`);
+      refuse(t('Vídeo longo demais'), t('Nas mensagens o vídeo também precisa ter até {seconds} segundos.', { seconds: MAX_VIDEO_SECONDS }));
       return null;
     }
     if (width && height && height > width) {
-      refuse('Vídeo na vertical', 'No 16:9 só entra vídeo na horizontal.');
+      refuse(t('Vídeo na vertical'), t('No 16:9 só entra vídeo na horizontal.'));
       return null;
     }
     return { kind: 'video', uri: asset.uri, width, height };
@@ -69,16 +70,16 @@ export function MediaThumb({ message, onOpen }: { message: Message; onOpen: () =
   const label = !video
     ? null
     : message.status === 'processing'
-      ? 'Processando…'
+      ? t('Processando…')
       : message.status === 'failed'
-        ? 'Não foi possível processar'
-        : 'Vídeo';
+        ? t('Não foi possível processar')
+        : t('Vídeo');
   return (
     <Pressable
       onPress={onOpen}
       disabled={!playable}
       accessibilityRole="button"
-      accessibilityLabel={video ? 'Abrir o vídeo' : 'Abrir a foto'}
+      accessibilityLabel={video ? t('Abrir o vídeo') : t('Abrir a foto')}
       style={[styles.thumb, { width, height }]}>
       {url ? <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} /> : null}
       {label ? <Text style={styles.tag}>{label}</Text> : null}
@@ -117,9 +118,9 @@ function Viewer({ message, onClose }: { message: Message; onClose: () => void })
         onPress={onClose}
         hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel="Fechar"
+        accessibilityLabel={t('Fechar')}
         style={[styles.close, { top: Math.max(insets.top, Spacing.md), right: Math.max(insets.right, Spacing.md) }]}>
-        <Text style={styles.closeText}>Fechar</Text>
+        <Text style={styles.closeText}>{t('Fechar')}</Text>
       </Pressable>
     </View>
   );

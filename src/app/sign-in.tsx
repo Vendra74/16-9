@@ -9,6 +9,7 @@ import { Button, Field, FormMessage } from '@/components/form';
 import { Colors, Spacing } from '@/constants/theme';
 import { isUsernameAvailable, normalizeUsername, USERNAME_PATTERN } from '@/lib/profile';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
+import { t } from '@/lib/i18n';
 
 /** 'forgot' pede o e-mail; 'reset' recebe o código enviado e a senha nova. */
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
@@ -18,27 +19,27 @@ type InputRef = ComponentRef<typeof TextInput>;
 function authMessage(error: AuthError) {
   switch (error.code) {
     case 'invalid_credentials':
-      return 'E-mail ou senha incorretos.';
+      return t('E-mail ou senha incorretos.');
     case 'user_already_exists':
     case 'email_exists':
-      return 'Já existe uma conta com esse e-mail. Toque em "Já tenho conta".';
+      return t('Já existe uma conta com esse e-mail. Toque em "Já tenho conta".');
     case 'weak_password':
-      return 'Senha fraca. Use pelo menos 8 caracteres.';
+      return t('Senha fraca. Use pelo menos 8 caracteres.');
     case 'email_not_confirmed':
-      return 'Confirme seu e-mail pelo link que enviamos e tente de novo.';
+      return t('Confirme seu e-mail pelo link que enviamos e tente de novo.');
     case 'email_address_invalid':
-      return 'Esse e-mail não parece válido.';
+      return t('Esse e-mail não parece válido.');
     case 'over_email_send_rate_limit':
     case 'over_request_rate_limit':
-      return 'Muitas tentativas seguidas. Espere alguns minutos.';
+      return t('Muitas tentativas seguidas. Espere alguns minutos.');
     case 'otp_expired':
-      return 'Código incorreto ou vencido. Confira o e-mail ou peça um código novo.';
+      return t('Código incorreto ou vencido. Confira o e-mail ou peça um código novo.');
     case 'same_password':
-      return 'A senha nova precisa ser diferente da anterior.';
+      return t('A senha nova precisa ser diferente da anterior.');
     case 'signup_disabled':
-      return 'Cadastros fechados no momento.';
+      return t('Cadastros fechados no momento.');
     default:
-      return error.message || 'Algo deu errado. Tente de novo.';
+      return error.message || t('Algo deu errado. Tente de novo.');
   }
 }
 
@@ -82,7 +83,7 @@ export default function SignInScreen() {
     setError(null);
     setInfo(null);
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) return setError('Digite o e-mail da sua conta.');
+    if (!cleanEmail) return setError(t('Digite o e-mail da sua conta.'));
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
@@ -91,9 +92,9 @@ export default function SignInScreen() {
       setPassword('');
       setMode('reset');
       // Por segurança o servidor não diz se o e-mail existe; a mensagem é a mesma nos dois casos.
-      setInfo(`Se existe uma conta com ${cleanEmail}, o código chega em instantes. Olhe também o spam.`);
+      setInfo(t('Se existe uma conta com {email}, o código chega em instantes. Olhe também o spam.', { email: cleanEmail }));
     } catch {
-      setError('Sem conexão com o servidor. Confira a internet e tente de novo.');
+      setError(t('Sem conexão com o servidor. Confira a internet e tente de novo.'));
     } finally {
       setBusy(false);
     }
@@ -104,8 +105,8 @@ export default function SignInScreen() {
     setError(null);
     setInfo(null);
     const token = code.replace(/\D/g, '');
-    if (token.length < 6) return setError('Digite o código que chegou no seu e-mail.');
-    if (password.length < 8) return setError('Use pelo menos 8 caracteres na senha nova.');
+    if (token.length < 6) return setError(t('Digite o código que chegou no seu e-mail.'));
+    if (password.length < 8) return setError(t('Use pelo menos 8 caracteres na senha nova.'));
     setBusy(true);
     try {
       const verified = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: 'recovery' });
@@ -114,12 +115,12 @@ export default function SignInScreen() {
       const updated = await supabase.auth.updateUser({ password });
       if (updated.error) {
         Alert.alert(
-          'Você entrou, mas a senha não foi trocada',
-          `${authMessage(updated.error)} Saia pelo Perfil e use "Esqueci minha senha" de novo.`,
+          t('Você entrou, mas a senha não foi trocada'),
+          `${authMessage(updated.error)} ${t('Saia pelo Perfil e use "Esqueci minha senha" de novo.')}`,
         );
       }
     } catch {
-      setError('Sem conexão com o servidor. Confira a internet e tente de novo.');
+      setError(t('Sem conexão com o servidor. Confira a internet e tente de novo.'));
     } finally {
       setBusy(false);
     }
@@ -130,7 +131,7 @@ export default function SignInScreen() {
     setInfo(null);
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !password) {
-      setError('Preencha e-mail e senha.');
+      setError(t('Preencha e-mail e senha.'));
       return;
     }
 
@@ -143,12 +144,12 @@ export default function SignInScreen() {
       }
 
       const handle = normalizeUsername(username);
-      if (!name.trim()) return setError('Diga como quer aparecer no 16:9.');
+      if (!name.trim()) return setError(t('Diga como quer aparecer no 16:9.'));
       if (!USERNAME_PATTERN.test(handle)) {
-        return setError('O @ precisa ter de 3 a 24 letras, números, ponto ou _.');
+        return setError(t('O @ precisa ter de 3 a 24 letras, números, ponto ou _.'));
       }
-      if (password.length < 8) return setError('Use pelo menos 8 caracteres na senha.');
-      if (!(await isUsernameAvailable(handle))) return setError(`@${handle} já está em uso.`);
+      if (password.length < 8) return setError(t('Use pelo menos 8 caracteres na senha.'));
+      if (!(await isUsernameAvailable(handle))) return setError(t('@{handle} já está em uso.', { handle }));
 
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -159,10 +160,10 @@ export default function SignInScreen() {
       // Com confirmação de e-mail ligada no Supabase, a sessão só vem depois do link.
       if (!data.session) {
         setMode('sign-in');
-        setInfo('Conta criada. Abra o link que enviamos para o seu e-mail e depois entre aqui.');
+        setInfo(t('Conta criada. Abra o link que enviamos para o seu e-mail e depois entre aqui.'));
       }
     } catch {
-      setError('Sem conexão com o servidor. Confira a internet e tente de novo.');
+      setError(t('Sem conexão com o servidor. Confira a internet e tente de novo.'));
     } finally {
       setBusy(false);
     }
@@ -170,7 +171,7 @@ export default function SignInScreen() {
 
   const signingUp = mode === 'sign-up';
   const recovering = mode === 'forgot' || mode === 'reset';
-  const title = { 'sign-in': 'Entrar', 'sign-up': 'Criar conta', forgot: 'Esqueci minha senha', reset: 'Nova senha' }[mode];
+  const title = { 'sign-in': t('Entrar'), 'sign-up': t('Criar conta'), forgot: t('Esqueci minha senha'), reset: t('Nova senha') }[mode];
 
   return (
     <View style={[styles.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
@@ -180,7 +181,7 @@ export default function SignInScreen() {
           <Text style={styles.logo}>16:9</Text>
         </View>
         <Text style={styles.slogan}>A FRAME FOR EVERYONE</Text>
-        <Text style={styles.beta}>Versão de teste. Seu feedback molda o app.</Text>
+        <Text style={styles.beta}>{t('Versão de teste. Seu feedback molda o app.')}</Text>
       </View>
 
       <ScrollView
@@ -191,18 +192,18 @@ export default function SignInScreen() {
         automaticallyAdjustKeyboardInsets>
         <Text style={styles.title}>{title}</Text>
         {mode === 'forgot' ? (
-          <Text style={styles.help}>Digite o e-mail da sua conta. Enviamos um código para você criar uma senha nova.</Text>
+          <Text style={styles.help}>{t('Digite o e-mail da sua conta. Enviamos um código para você criar uma senha nova.')}</Text>
         ) : null}
 
         {!supabaseConfigured ? (
-          <FormMessage text="Servidor não configurado: falta EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_KEY (veja o README)." />
+          <FormMessage text={t('Servidor não configurado: falta EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_KEY (veja o README).')} />
         ) : null}
 
         {signingUp ? (
           <>
             <Field
-              label="Nome"
-              placeholder="Como você assina seus trabalhos"
+              label={t('Nome')}
+              placeholder={t('Como você assina seus trabalhos')}
               value={name}
               onChangeText={setName}
               autoComplete="name"
@@ -212,8 +213,8 @@ export default function SignInScreen() {
             />
             <Field
               ref={usernameRef}
-              label="Usuário"
-              placeholder="@seunome"
+              label={t('Usuário')}
+              placeholder={t('@seunome')}
               value={username}
               onChangeText={(text) => setUsername(normalizeUsername(text))}
               autoCapitalize="none"
@@ -228,8 +229,8 @@ export default function SignInScreen() {
 
         {mode === 'reset' ? (
           <Field
-            label="Código"
-            placeholder="Código que chegou no e-mail"
+            label={t('Código')}
+            placeholder={t('Código que chegou no e-mail')}
             value={code}
             onChangeText={setCode}
             keyboardType="number-pad"
@@ -242,8 +243,8 @@ export default function SignInScreen() {
         ) : (
         <Field
           ref={emailRef}
-          label="E-mail"
-          placeholder="voce@email.com"
+          label={t('E-mail')}
+          placeholder={t('voce@email.com')}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -258,8 +259,8 @@ export default function SignInScreen() {
         {mode === 'forgot' ? null : (
         <Field
           ref={passwordRef}
-          label={mode === 'reset' ? 'Senha nova' : 'Senha'}
-          placeholder={signingUp || mode === 'reset' ? 'Mínimo de 8 caracteres' : 'Sua senha'}
+          label={mode === 'reset' ? t('Senha nova') : t('Senha')}
+          placeholder={signingUp || mode === 'reset' ? t('Mínimo de 8 caracteres') : t('Sua senha')}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -277,28 +278,28 @@ export default function SignInScreen() {
 {recovering ? (
           <>
             <Button
-              title={mode === 'forgot' ? 'Enviar código' : 'Trocar senha e entrar'}
+              title={mode === 'forgot' ? t('Enviar código') : t('Trocar senha e entrar')}
               onPress={mode === 'forgot' ? sendCode : resetPassword}
               loading={busy}
               disabled={!supabaseConfigured}
             />
-            {mode === 'reset' ? <Button variant="ghost" title="Enviar outro código" onPress={sendCode} disabled={busy} /> : null}
-            <Button variant="ghost" title="Voltar para entrar" onPress={() => go('sign-in')} />
+            {mode === 'reset' ? <Button variant="ghost" title={t('Enviar outro código')} onPress={sendCode} disabled={busy} /> : null}
+            <Button variant="ghost" title={t('Voltar para entrar')} onPress={() => go('sign-in')} />
           </>
         ) : (
           <>
             <Button
-              title={signingUp ? 'Criar conta' : 'Entrar'}
+              title={signingUp ? t('Criar conta') : t('Entrar')}
               onPress={submit}
               loading={busy}
               disabled={!supabaseConfigured}
             />
             <Button
               variant="ghost"
-              title={signingUp ? 'Já tenho conta' : 'Ainda não tenho conta'}
+              title={signingUp ? t('Já tenho conta') : t('Ainda não tenho conta')}
               onPress={switchMode}
             />
-            {!signingUp ? <Button variant="ghost" title="Esqueci minha senha" onPress={() => go('forgot')} /> : null}
+            {!signingUp ? <Button variant="ghost" title={t('Esqueci minha senha')} onPress={() => go('forgot')} /> : null}
           </>
         )}
       </ScrollView>

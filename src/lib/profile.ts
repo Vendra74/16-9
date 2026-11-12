@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { t } from '@/lib/i18n';
 
 export type Profile = {
   id: string;
@@ -55,7 +56,7 @@ export async function searchCreators(query: string, me: string, limit = 12) {
 export async function updateProfile(userId: string, changes: ProfileChanges) {
   const { error } = await supabase.from('profiles').update(changes).eq('id', userId);
   if (error) {
-    if (error.code === '23505') throw new Error('Esse @ já está em uso.');
+    if (error.code === '23505') throw new Error(t('Esse @ já está em uso.'));
     throw error;
   }
 }

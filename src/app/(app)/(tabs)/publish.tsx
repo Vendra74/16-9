@@ -22,6 +22,7 @@ import {
   takeRecordedVideo,
   uploadVideo,
 } from '@/lib/video';
+import { t } from '@/lib/i18n';
 
 type Picked = { kind: 'video'; uri: string; width: number; height: number };
 type Photo = { uri: string; width: number; height: number };
@@ -90,8 +91,8 @@ export default function PublishScreen() {
           message,
           offerTrim
             ? [
-                { text: 'Agora não', style: 'cancel' },
-                { text: 'Cortar um trecho', onPress: () => pick(true) },
+                { text: t('Agora não'), style: 'cancel' },
+                { text: t('Cortar um trecho'), onPress: () => pick(true) },
               ]
             : undefined,
         ),
@@ -132,19 +133,24 @@ export default function PublishScreen() {
         if ((asset.duration ?? 0) > (MAX_VIDEO_SECONDS + 0.5) * 1000) {
           if (CAN_TRIM && !trim) {
             refuse(
-              'Vídeo longo demais',
-              `O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Quer escolher um trecho dele? Você seleciona o vídeo de novo e arrasta as alças amarelas.`,
+              t('Vídeo longo demais'),
+              t('O vídeo precisa ter até {seconds} segundos. Quer escolher um trecho dele? Você seleciona o vídeo de novo e arrasta as alças amarelas.', {
+                seconds: MAX_VIDEO_SECONDS,
+              }),
               true,
             );
           } else {
-            refuse('Vídeo longo demais', `O vídeo precisa ter até ${MAX_VIDEO_SECONDS} segundos. Corte um trecho menor e tente de novo.`);
+            refuse(
+              t('Vídeo longo demais'),
+              t('O vídeo precisa ter até {seconds} segundos. Corte um trecho menor e tente de novo.', { seconds: MAX_VIDEO_SECONDS }),
+            );
           }
           return;
         }
         if (width && height && height > width) {
           refuse(
-            'Vídeo na vertical',
-            'No 16:9 só entra vídeo na horizontal. Escolha um vídeo gravado com o celular deitado.',
+            t('Vídeo na vertical'),
+            t('No 16:9 só entra vídeo na horizontal. Escolha um vídeo gravado com o celular deitado.'),
           );
           return;
         }
@@ -156,7 +162,10 @@ export default function PublishScreen() {
       }
 
       if (result.assets.some((a) => a.type === 'video')) {
-        refuse('Vídeo vai sozinho', `Um post leva um vídeo ou até ${MAX_PHOTOS} fotos. Escolha só o vídeo, ou só as fotos.`);
+        refuse(
+          t('Vídeo vai sozinho'),
+          t('Um post leva um vídeo ou até {max} fotos. Escolha só o vídeo, ou só as fotos.', { max: MAX_PHOTOS }),
+        );
         return;
       }
       const chosen: Photo[] = [];
@@ -180,7 +189,7 @@ export default function PublishScreen() {
       // A ficha técnica vem da primeira foto.
       setGear(gearFromExif(asset.exif));
     } catch {
-      setError('Não foi possível abrir esse arquivo. Tente escolher de novo.');
+      setError(t('Não foi possível abrir esse arquivo. Tente escolher de novo.'));
     } finally {
       setOpening(false);
     }
@@ -205,14 +214,14 @@ export default function PublishScreen() {
       let image;
       let path;
       if (picked) {
-        setStep('Preparando a capa…');
+        setStep(t('Preparando a capa…'));
         image = await makePoster(picked.uri, MAX_WIDTH, cover);
-        setStep('Enviando…');
+        setStep(t('Enviando…'));
         path = await uploadJpeg('posts', session.user.id, image.uri);
       } else {
         // Uma foto por vez: prepara, envia e segue para a próxima.
         for (const [index, photo] of photos.entries()) {
-          setStep(photos.length > 1 ? `Enviando foto ${index + 1} de ${photos.length}…` : 'Enviando…');
+          setStep(photos.length > 1 ? t('Enviando foto {n} de {total}…', { n: index + 1, total: photos.length }) : t('Enviando…'));
           const ready = await cropAndResize(photo.uri, crops.current[photo.uri] ?? null, MAX_WIDTH);
           const uploaded = await uploadJpeg('posts', session.user.id, ready.uri);
           if (index === 0) {
@@ -243,8 +252,8 @@ export default function PublishScreen() {
       if (upload && picked) {
         // O post já existe (invisível para os outros) e só aparece quando o vídeo ficar pronto.
         try {
-          setStep('Enviando o vídeo… 0%');
-          await uploadVideo(upload.url, picked.uri, (f) => setStep(`Enviando o vídeo… ${Math.round(f * 100)}%`));
+          setStep(t('Enviando o vídeo… {percent}%', { percent: 0 }));
+          await uploadVideo(upload.url, picked.uri, (f) => setStep(t('Enviando o vídeo… {percent}%', { percent: Math.round(f * 100) })));
         } catch (e) {
           await deletePost({ id: postId, image_path: path, kind: 'video' }).catch(() => {});
           throw e;
@@ -253,7 +262,7 @@ export default function PublishScreen() {
       reset();
       router.navigate('/');
     } catch {
-      setError('Não foi possível publicar. Confira a internet e tente de novo.');
+      setError(t('Não foi possível publicar. Confira a internet e tente de novo.'));
     } finally {
       setStep(null);
     }
@@ -262,24 +271,26 @@ export default function PublishScreen() {
   if (!picked && photos.length === 0) {
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Publicar</Text>
+        <Text style={styles.title}>{t('Publicar')}</Text>
         <Text style={styles.text}>
-          Escolha uma foto, várias fotos (viram um carrossel) ou um vídeo de até 1 minuto, na horizontal{CAN_RECORD ? ', ou grave na hora' : ''}. A foto
-          você enquadra em 16:9, e a ficha técnica (câmera, lente, abertura, velocidade e ISO) é preenchida a partir dela.
+          {CAN_RECORD
+            ? t('Escolha uma foto, várias fotos (viram um carrossel) ou um vídeo de até 1 minuto, na horizontal, ou grave na hora.')
+            : t('Escolha uma foto, várias fotos (viram um carrossel) ou um vídeo de até 1 minuto, na horizontal.')}{' '}
+          {t('A foto você enquadra em 16:9, e a ficha técnica (câmera, lente, abertura, velocidade e ISO) é preenchida a partir dela.')}
         </Text>
         <FormMessage text={error} />
         {opening ? (
           <View style={styles.busy}>
             <ApertureLoader size={28} />
-            <Text style={styles.text}>Preparando… Vídeos levam alguns segundos.</Text>
+            <Text style={styles.text}>{t('Preparando… Vídeos levam alguns segundos.')}</Text>
           </View>
         ) : (
           <>
             <View style={styles.choices}>
-              <Button title="Escolher foto ou vídeo" onPress={() => pick()} />
-              {CAN_RECORD ? <Button title="Gravar um vídeo" onPress={() => router.push('/record')} /> : null}
+              <Button title={t('Escolher foto ou vídeo')} onPress={() => pick()} />
+              {CAN_RECORD ? <Button title={t('Gravar um vídeo')} onPress={() => router.push('/record')} /> : null}
             </View>
-            {CAN_TRIM ? <Button variant="ghost" title="Cortar um trecho de um vídeo longo" onPress={() => pick(true)} /> : null}
+            {CAN_TRIM ? <Button variant="ghost" title={t('Cortar um trecho de um vídeo longo')} onPress={() => pick(true)} /> : null}
           </>
         )}
       </View>
@@ -315,7 +326,7 @@ export default function PublishScreen() {
                   onPress={() => setCurrent(index)}
                   disabled={busy}
                   accessibilityRole="button"
-                  accessibilityLabel={`Foto ${index + 1} de ${photos.length}`}
+                  accessibilityLabel={t('Foto {n} de {total}', { n: index + 1, total: photos.length })}
                   style={[styles.thumb, index === shown && styles.thumbOn]}>
                   <Image source={{ uri: photo.uri }} style={styles.thumbImage} resizeMode="cover" />
                 </Pressable>
@@ -325,7 +336,7 @@ export default function PublishScreen() {
                   onPress={() => pick(false, true)}
                   disabled={busy || opening}
                   accessibilityRole="button"
-                  accessibilityLabel="Adicionar fotos"
+                  accessibilityLabel={t('Adicionar fotos')}
                   style={[styles.thumb, styles.thumbAdd]}>
                   <Text style={styles.thumbAddText}>+</Text>
                 </Pressable>
@@ -337,7 +348,7 @@ export default function PublishScreen() {
           {photos.length > 1 ? (
             <Button
               variant="ghost"
-              title="Tirar esta foto"
+              title={t('Tirar esta foto')}
               disabled={busy}
               onPress={() => {
                 setPhotos(photos.filter((_, index) => index !== shown));
@@ -345,8 +356,8 @@ export default function PublishScreen() {
               }}
             />
           ) : null}
-          <Button variant="ghost" title={opening ? 'Preparando…' : 'Trocar'} onPress={() => pick()} disabled={busy || opening} />
-          <Button variant="ghost" title="Cancelar" onPress={reset} disabled={busy} />
+          <Button variant="ghost" title={opening ? t('Preparando…') : t('Trocar')} onPress={() => pick()} disabled={busy || opening} />
+          <Button variant="ghost" title={t('Cancelar')} onPress={reset} disabled={busy} />
         </View>
       </View>
 
@@ -356,23 +367,23 @@ export default function PublishScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets>
-        <Field label="Título" placeholder="Opcional" value={title} onChangeText={setTitle} maxLength={120} />
-        <Field label="Local" placeholder="Cidade, lugar" value={location} onChangeText={setLocation} maxLength={120} />
+        <Field label={t('Título')} placeholder={t('Opcional')} value={title} onChangeText={setTitle} maxLength={120} />
+        <Field label={t('Local')} placeholder={t('Cidade, lugar')} value={location} onChangeText={setLocation} maxLength={120} />
 
-        <Text style={styles.section}>Ficha técnica</Text>
-        <Field label="Câmera" placeholder="Sony A7 IV" value={gear.camera} onChangeText={set('camera')} maxLength={80} />
-        <Field label="Lente" placeholder="24-70mm f/2.8" value={gear.lens} onChangeText={set('lens')} maxLength={80} />
+        <Text style={styles.section}>{t('Ficha técnica')}</Text>
+        <Field label={t('Câmera')} placeholder="Sony A7 IV" value={gear.camera} onChangeText={set('camera')} maxLength={80} />
+        <Field label={t('Lente')} placeholder="24-70mm f/2.8" value={gear.lens} onChangeText={set('lens')} maxLength={80} />
         <View style={styles.row}>
           <View style={styles.col}>
-            <Field label="Focal" placeholder="35mm" value={gear.focal_length} onChangeText={set('focal_length')} maxLength={20} />
+            <Field label={t('Focal')} placeholder="35mm" value={gear.focal_length} onChangeText={set('focal_length')} maxLength={20} />
           </View>
           <View style={styles.col}>
-            <Field label="Abertura" placeholder="f/8" value={gear.aperture} onChangeText={set('aperture')} maxLength={20} />
+            <Field label={t('Abertura')} placeholder="f/8" value={gear.aperture} onChangeText={set('aperture')} maxLength={20} />
           </View>
         </View>
         <View style={styles.row}>
           <View style={styles.col}>
-            <Field label="Velocidade" placeholder="1/250s" value={gear.shutter} onChangeText={set('shutter')} maxLength={20} />
+            <Field label={t('Velocidade')} placeholder="1/250s" value={gear.shutter} onChangeText={set('shutter')} maxLength={20} />
           </View>
           <View style={styles.col}>
             <Field label="ISO" placeholder="100" value={gear.iso} onChangeText={set('iso')} maxLength={20} keyboardType="number-pad" />
@@ -386,7 +397,7 @@ export default function PublishScreen() {
             <Text style={styles.text}>{step}</Text>
           </View>
         ) : (
-          <Button title="Publicar" onPress={publish} />
+          <Button title={t('Publicar')} onPress={publish} />
         )}
       </ScrollView>
     </View>
@@ -442,14 +453,14 @@ function VideoPreview({
         disabled={disabled}
         hitSlop={6}
         accessibilityRole="button"
-        accessibilityLabel="Usar este quadro como capa"
+        accessibilityLabel={t('Usar este quadro como capa')}
         onPress={() => {
           // Para no quadro escolhido, para a pessoa ver o que virou capa.
           player.pause();
           onCover(Math.max(0, player.currentTime));
         }}>
         <Text style={styles.coverText}>
-          {chosen ? `Capa em ${clock(cover)} · trocar para este quadro` : 'Usar este quadro como capa'}
+          {chosen ? t('Capa em {time} · trocar para este quadro', { time: clock(cover) }) : t('Usar este quadro como capa')}
         </Text>
       </Pressable>
     </View>

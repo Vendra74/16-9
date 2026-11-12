@@ -8,6 +8,7 @@ import { ApertureLoader } from '@/components/aperture';
 import { Button } from '@/components/form';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { MAX_VIDEO_SECONDS, setRecordedVideo } from '@/lib/video';
+import { t } from '@/lib/i18n';
 
 function clock(seconds: number) {
   const s = Math.min(seconds, MAX_VIDEO_SECONDS);
@@ -84,17 +85,17 @@ export default function RecordScreen() {
     const blocked = (!camera.granted && !camera.canAskAgain) || (!mic.granted && !mic.canAskAgain);
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Câmera e microfone</Text>
+        <Text style={styles.title}>{t('Câmera e microfone')}</Text>
         <Text style={styles.text}>
-          Para gravar pelo 16:9, o app precisa da câmera e do microfone.
-          {blocked ? ' Libere os dois nos Ajustes do aparelho.' : ''}
+          {t('Para gravar pelo 16:9, o app precisa da câmera e do microfone.')}
+          {blocked ? ' ' + t('Libere os dois nos Ajustes do aparelho.') : ''}
         </Text>
         {blocked ? (
-          <Button title="Abrir Ajustes" onPress={() => Linking.openSettings()} />
+          <Button title={t('Abrir Ajustes')} onPress={() => Linking.openSettings()} />
         ) : (
-          <Button title="Permitir" onPress={() => (camera.granted ? askMic() : askCamera())} />
+          <Button title={t('Permitir')} onPress={() => (camera.granted ? askMic() : askCamera())} />
         )}
-        <Button variant="ghost" title="Voltar" onPress={() => router.back()} />
+        <Button variant="ghost" title={t('Voltar')} onPress={() => router.back()} />
       </View>
     );
   }
@@ -115,10 +116,10 @@ export default function RecordScreen() {
       </View>
 
       <View style={[styles.left, { paddingLeft: Math.max(insets.left, Spacing.md) }]} pointerEvents="box-none">
-        <Pressable onPress={close} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fechar a câmera" style={styles.pill}>
-          <Text style={styles.pillText}>{recording ? 'Descartar' : 'Fechar'}</Text>
+        <Pressable onPress={close} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('Fechar a câmera')} style={styles.pill}>
+          <Text style={styles.pillText}>{recording ? t('Descartar') : t('Fechar')}</Text>
         </Pressable>
-        {failed ? <Text style={styles.error}>Não foi possível gravar. Tente de novo.</Text> : null}
+        {failed ? <Text style={styles.error}>{t('Não foi possível gravar. Tente de novo.')}</Text> : null}
       </View>
 
       <View style={[styles.right, { paddingRight: Math.max(insets.right, Spacing.md) }]} pointerEvents="box-none">
@@ -129,7 +130,7 @@ export default function RecordScreen() {
           onPress={() => (recording ? view.current?.stopRecording() : start())}
           disabled={!ready}
           accessibilityRole="button"
-          accessibilityLabel={recording ? 'Parar a gravação' : 'Gravar'}
+          accessibilityLabel={recording ? t('Parar a gravação') : t('Gravar')}
           style={[styles.shutter, !ready && styles.dimmed]}>
           <View style={recording ? styles.stop : styles.dot} />
         </Pressable>
@@ -143,9 +144,9 @@ export default function RecordScreen() {
             }}
             hitSlop={10}
             accessibilityRole="button"
-            accessibilityLabel="Trocar de câmera"
+            accessibilityLabel={t('Trocar de câmera')}
             style={styles.pill}>
-            <Text style={styles.pillText}>Virar</Text>
+            <Text style={styles.pillText}>{t('Virar')}</Text>
           </Pressable>
         )}
       </View>

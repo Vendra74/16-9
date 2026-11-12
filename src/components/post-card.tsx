@@ -10,6 +10,7 @@ import { CommentIcon, MessagesIcon, MoreIcon, SendIcon, SoundIcon } from '@/comp
 import { Colors, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
 import { postImageUrl, postImageUrls, type FeedPost } from '@/lib/posts';
+import { t } from '@/lib/i18n';
 
 /**
  * Um trabalho no feed, ocupando a moldura 16:9 inteira.
@@ -43,7 +44,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
   const [page, setPage] = useState(0);
   const images = postImageUrls(post);
   const carousel = post.kind !== 'video' && images.length > 1;
-  const name = post.author?.display_name || post.author?.username || 'Alguém';
+  const name = post.author?.display_name || post.author?.username || t('Alguém');
   const settings = settingsLine(post);
   const gear = [post.camera, post.lens, settings].filter(Boolean).join(' · ');
   const isVideo = post.kind === 'video';
@@ -69,7 +70,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
                 contentFit="cover"
                 transition={index === 0 ? 400 : 0}
                 onLoad={index === 0 ? () => setLoaded(true) : undefined}
-                accessibilityLabel={`${post.title || `Foto de ${name}`}, ${index + 1} de ${images.length}`}
+                accessibilityLabel={t('{title}, {n} de {total}', { title: post.title || t('Foto de {name}', { name }), n: index + 1, total: images.length })}
               />
             </Pressable>
           ))}
@@ -82,7 +83,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
           transition={400}
           recyclingKey={post.id}
           onLoad={() => setLoaded(true)}
-          accessibilityLabel={post.title || `Foto de ${name}`}
+          accessibilityLabel={post.title || t('Foto de {name}', { name })}
         />
       )}
 
@@ -101,8 +102,8 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
         <View style={styles.loader} pointerEvents="none">
           <Text style={styles.notice}>
             {post.status === 'failed'
-              ? 'Não foi possível processar este vídeo. Apague no seu perfil e envie de novo.'
-              : 'Processando o vídeo… Ele aparece para todo mundo em instantes.'}
+              ? t('Não foi possível processar este vídeo. Apague no seu perfil e envie de novo.')
+              : t('Processando o vídeo… Ele aparece para todo mundo em instantes.')}
           </Text>
         </View>
       ) : null}
@@ -121,7 +122,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
               onPress={onAuthor}
               hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel={`Ver o perfil de ${name}`}>
+              accessibilityLabel={t('Ver o perfil de {name}', { name })}>
               <Avatar name={name} url={post.author?.avatar_url} size={34} />
               <View style={styles.shrink}>
                 <Text style={styles.author}>{name}</Text>
@@ -136,12 +137,12 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
                 onPress={onToggleSound}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel={muted ? 'Ligar o som' : 'Desligar o som'}>
+                accessibilityLabel={muted ? t('Ligar o som') : t('Desligar o som')}>
                 <SoundIcon color={Colors.text} muted={muted} />
               </Pressable>
             ) : null}
             {!isMine ? (
-              <Pressable onPress={onMore} hitSlop={10} accessibilityLabel="Denunciar ou bloquear">
+              <Pressable onPress={onMore} hitSlop={10} accessibilityLabel={t('Denunciar ou bloquear')}>
                 <MoreIcon color={Colors.text} />
               </Pressable>
             ) : null}
@@ -159,19 +160,19 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
                 style={styles.action}
                 onPress={onComment}
                 hitSlop={8}
-                accessibilityLabel={`Comentar, ${post.comment_count} comentários`}>
+                accessibilityLabel={t('Comentar, {n} comentários', { n: post.comment_count })}>
                 <CommentIcon color={Colors.text} size={24} />
-                <Text style={styles.actionText}>{post.comment_count > 0 ? post.comment_count : 'Comentar'}</Text>
+                <Text style={styles.actionText}>{post.comment_count > 0 ? post.comment_count : t('Comentar')}</Text>
               </Pressable>
               {!isMine ? (
-                <Pressable style={styles.action} onPress={onMessage} hitSlop={8} accessibilityLabel={`Mandar mensagem para ${name}`}>
+                <Pressable style={styles.action} onPress={onMessage} hitSlop={8} accessibilityLabel={t('Mandar mensagem para {name}', { name })}>
                   <MessagesIcon color={Colors.text} size={24} />
-                  <Text style={styles.actionText}>Mensagem</Text>
+                  <Text style={styles.actionText}>{t('Mensagem')}</Text>
                 </Pressable>
               ) : null}
-              <Pressable style={styles.action} onPress={onShare} hitSlop={8} accessibilityLabel="Enviar para alguém">
+              <Pressable style={styles.action} onPress={onShare} hitSlop={8} accessibilityLabel={t('Enviar para alguém')}>
                 <SendIcon color={Colors.text} size={24} />
-                <Text style={styles.actionText}>Enviar</Text>
+                <Text style={styles.actionText}>{t('Enviar')}</Text>
               </Pressable>
             </View>
           </View>

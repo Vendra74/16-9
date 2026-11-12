@@ -7,6 +7,7 @@ import { Button, FormMessage } from '@/components/form';
 import { Colors, Spacing } from '@/constants/theme';
 import { searchPeople, type MiniProfile } from '@/lib/messages';
 import { useSession } from '@/lib/session';
+import { t } from '@/lib/i18n';
 
 type Props = {
   visible: boolean;
@@ -48,11 +49,11 @@ export function PeoplePicker({ visible, title, onPick, onClose }: Props) {
         <View style={[styles.sheet, { marginTop: Math.max(insets.top, Spacing.md) }]}>
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
-            <Button variant="ghost" title="Fechar" onPress={onClose} />
+            <Button variant="ghost" title={t('Fechar')} onPress={onClose} />
           </View>
           <TextInput
             style={styles.search}
-            placeholder="Buscar por nome ou @"
+            placeholder={t('Buscar por nome ou @')}
             placeholderTextColor={Colors.textMuted}
             value={query}
             onChangeText={setQuery}
@@ -61,13 +62,13 @@ export function PeoplePicker({ visible, title, onPick, onClose }: Props) {
             keyboardAppearance="dark"
             selectionColor={Colors.silver}
           />
-          {error ? <FormMessage text="Não foi possível buscar. Confira a internet." /> : null}
+          {error ? <FormMessage text={t('Não foi possível buscar. Confira a internet.')} /> : null}
           <FlatList
             data={people ?? []}
             keyExtractor={(p) => p.id}
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
-              people ? <Text style={styles.empty}>Ninguém encontrado.</Text> : undefined
+              people ? <Text style={styles.empty}>{t('Ninguém encontrado.')}</Text> : undefined
             }
             renderItem={({ item }) => (
               <Pressable style={({ pressed }) => [styles.row, pressed && styles.pressed]} onPress={() => onPick(item)}>

@@ -15,6 +15,7 @@ import { fetchUserPosts, type FeedPost } from '@/lib/posts';
 import { fetchProfile, type Profile } from '@/lib/profile';
 import { useSession } from '@/lib/session';
 import { openConversation, openViewer } from '@/lib/viewer';
+import { plural, t } from '@/lib/i18n';
 
 const GAP = Spacing.sm;
 const MIN_TILE = 170;
@@ -58,8 +59,8 @@ export default function UserScreen() {
         </View>
         {error ? (
           <>
-            <FormMessage text="Não foi possível abrir este perfil." />
-            <Button variant="ghost" title="Tentar de novo" onPress={load} />
+            <FormMessage text={t('Não foi possível abrir este perfil.')} />
+            <Button variant="ghost" title={t('Tentar de novo')} onPress={load} />
           </>
         ) : (
           <ApertureLoader />
@@ -80,7 +81,7 @@ export default function UserScreen() {
       const c = await startConversation(profile.id);
       openConversation(c);
     } catch (e) {
-      Alert.alert('Não foi possível abrir a conversa', e instanceof Error ? e.message : undefined);
+      Alert.alert(t('Não foi possível abrir a conversa'), e instanceof Error ? e.message : undefined);
     } finally {
       setBusy(false);
     }
@@ -92,7 +93,7 @@ export default function UserScreen() {
       await unblockUser(profile.id);
       await load();
     } catch {
-      Alert.alert('Não foi possível desbloquear', 'Confira a internet e tente de novo.');
+      Alert.alert(t('Não foi possível desbloquear'), t('Confira a internet e tente de novo.'));
     } finally {
       setBusy(false);
     }
@@ -113,15 +114,15 @@ export default function UserScreen() {
         <View style={styles.actions}>
           {blocked ? (
             <>
-              <Text style={styles.blocked}>Você bloqueou esta pessoa.</Text>
-              <Button title="Desbloquear" onPress={unblock} loading={busy} />
+              <Text style={styles.blocked}>{t('Você bloqueou esta pessoa.')}</Text>
+              <Button title={t('Desbloquear')} onPress={unblock} loading={busy} />
             </>
           ) : (
             <>
-              <Button title="Mensagem" onPress={message} loading={busy} />
+              <Button title={t('Mensagem')} onPress={message} loading={busy} />
               <Button
                 variant="ghost"
-                title="Mais opções"
+                title={t('Mais opções')}
                 onPress={() => askModeration({ id: profile.id, name }, {}, load)}
               />
             </>
@@ -136,13 +137,13 @@ export default function UserScreen() {
         {posts.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
-              {blocked ? 'Os trabalhos de quem você bloqueou ficam escondidos.' : `${name} ainda não publicou nenhum trabalho.`}
+              {blocked ? t('Os trabalhos de quem você bloqueou ficam escondidos.') : t('{name} ainda não publicou nenhum trabalho.', { name })}
             </Text>
           </View>
         ) : (
           <>
             <Text style={styles.gridTitle}>
-              {posts.length} {posts.length === 1 ? 'trabalho' : 'trabalhos'}
+              {plural(posts.length, '{n} trabalho', '{n} trabalhos')}
             </Text>
             {width > 0 ? (
               <View style={styles.grid}>

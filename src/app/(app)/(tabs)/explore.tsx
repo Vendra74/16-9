@@ -12,12 +12,13 @@ import { fetchExplore, searchPosts, type FeedPost } from '@/lib/posts';
 import { searchCreators, type Profile } from '@/lib/profile';
 import { useSession } from '@/lib/session';
 import { openViewer } from '@/lib/viewer';
+import { t } from '@/lib/i18n';
 
 type Sort = 'top' | 'recent';
 
 const SORTS: { key: Sort; label: string }[] = [
-  { key: 'top', label: 'Em alta' },
-  { key: 'recent', label: 'Recentes' },
+  { key: 'top', label: t('Em alta') },
+  { key: 'recent', label: t('Recentes') },
 ];
 
 const GAP = Spacing.sm;
@@ -80,7 +81,7 @@ export default function ExploreScreen() {
       <View style={styles.header}>
         <TextInput
           style={styles.search}
-          placeholder="Buscar criadores e trabalhos"
+          placeholder={t('Buscar criadores e trabalhos')}
           placeholderTextColor={Colors.textMuted}
           value={query}
           onChangeText={setQuery}
@@ -90,7 +91,7 @@ export default function ExploreScreen() {
           clearButtonMode="while-editing"
           keyboardAppearance="dark"
           selectionColor={Colors.silver}
-          accessibilityLabel="Buscar criadores e trabalhos"
+          accessibilityLabel={t('Buscar criadores e trabalhos')}
         />
         {query.trim() ? null : (
           <View style={styles.chips}>
@@ -114,7 +115,7 @@ export default function ExploreScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-        {error ? <FormMessage text="Não foi possível carregar. Confira a internet." /> : null}
+        {error ? <FormMessage text={t('Não foi possível carregar. Confira a internet.')} /> : null}
 
         {posts === null ? (
           error ? null : (
@@ -126,7 +127,7 @@ export default function ExploreScreen() {
           <>
             {people.length > 0 ? (
               <View style={styles.section}>
-                <Text style={styles.heading}>Criadores</Text>
+                <Text style={styles.heading}>{t('Criadores')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.people}>
                   {people.map((person) => {
                     const name = person.display_name || person.username;
@@ -136,7 +137,7 @@ export default function ExploreScreen() {
                         style={({ pressed }) => [styles.person, pressed && styles.pressed]}
                         onPress={() => router.push({ pathname: '/user/[id]', params: { id: person.id } })}
                         accessibilityRole="button"
-                        accessibilityLabel={`Ver o perfil de ${name}`}>
+                        accessibilityLabel={t('Ver o perfil de {name}', { name })}>
                         <Avatar name={name} url={person.avatar_url} size={40} />
                         <View style={styles.personText}>
                           <Text style={styles.personName} numberOfLines={1}>
@@ -155,7 +156,7 @@ export default function ExploreScreen() {
 
             {posts.length > 0 ? (
               <View style={styles.section}>
-                {shown ? <Text style={styles.heading}>Trabalhos</Text> : null}
+                {shown ? <Text style={styles.heading}>{t('Trabalhos')}</Text> : null}
                 {width > 0 ? (
                   <View style={styles.grid}>
                     {posts.map((post) => (
@@ -168,11 +169,11 @@ export default function ExploreScreen() {
 
             {posts.length === 0 && people.length === 0 ? (
               <View style={styles.center}>
-                <Text style={styles.emptyTitle}>{shown ? `Nada encontrado para "${shown}"` : 'Ainda não há trabalhos por aqui'}</Text>
+                <Text style={styles.emptyTitle}>{shown ? t('Nada encontrado para "{query}"', { query: shown }) : t('Ainda não há trabalhos por aqui')}</Text>
                 <Text style={styles.emptyText}>
                   {shown
-                    ? 'Tente um nome, um @, uma cidade, uma câmera ou uma lente.'
-                    : 'Quando alguém publicar, os trabalhos aparecem aqui.'}
+                    ? t('Tente um nome, um @, uma cidade, uma câmera ou uma lente.')
+                    : t('Quando alguém publicar, os trabalhos aparecem aqui.')}
                 </Text>
               </View>
             ) : null}

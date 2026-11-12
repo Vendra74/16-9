@@ -7,6 +7,7 @@ import { Button } from '@/components/form';
 import { PostList } from '@/components/post-list';
 import { Colors, Spacing } from '@/constants/theme';
 import { fetchFeed, type FeedPost } from '@/lib/posts';
+import { t } from '@/lib/i18n';
 
 /**
  * Feed: um trabalho por vez, na maior moldura 16:9 que cabe ao lado do
@@ -46,8 +47,8 @@ export default function FeedScreen() {
     return (
       <View style={styles.container}>
         {error ? (
-          <Empty title="Sem conexão" text="Não foi possível carregar o feed.">
-            <Button variant="ghost" title="Tentar de novo" onPress={load} />
+          <Empty title={t('Sem conexão')} text={t('Não foi possível carregar o feed.')}>
+            <Button variant="ghost" title={t('Tentar de novo')} onPress={load} />
           </Empty>
         ) : (
           <ApertureLoader />
@@ -59,8 +60,8 @@ export default function FeedScreen() {
   if (posts.length === 0) {
     return (
       <View style={styles.container}>
-        <Empty title="O feed está esperando o primeiro frame" text="Publique uma foto em 16:9 e ela aparece aqui para todo mundo.">
-          <Button title="Publicar" onPress={() => router.navigate('/publish')} />
+        <Empty title={t('O feed está esperando o primeiro frame')} text={t('Publique uma foto em 16:9 e ela aparece aqui para todo mundo.')}>
+          <Button title={t('Publicar')} onPress={() => router.navigate('/publish')} />
         </Empty>
       </View>
     );

@@ -13,6 +13,7 @@ import { askModeration } from '@/lib/moderation';
 import type { FeedPost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
 import { openConversation, openMyProfile } from '@/lib/viewer';
+import { t } from '@/lib/i18n';
 
 /** Um post conta como "na tela" quando mais da metade dele aparece. */
 const VIEWABILITY = { itemVisiblePercentThreshold: 60 };
@@ -87,7 +88,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
       const c = await startConversation(post.user_id);
       openConversation(c);
     } catch (e) {
-      Alert.alert('Não foi possível abrir a conversa', e instanceof Error ? e.message : undefined);
+      Alert.alert(t('Não foi possível abrir a conversa'), e instanceof Error ? e.message : undefined);
     }
   }
 
@@ -98,7 +99,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
       await sendMessage(c, '', post.id);
       openConversation(c);
     } catch (e) {
-      Alert.alert('Não foi possível enviar', e instanceof Error ? e.message : undefined);
+      Alert.alert(t('Não foi possível enviar'), e instanceof Error ? e.message : undefined);
     }
   }
 
@@ -136,7 +137,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
   }
 
   function more(post: FeedPost) {
-    const name = post.author?.display_name || post.author?.username || 'esta pessoa';
+    const name = post.author?.display_name || post.author?.username || t('esta pessoa');
     askModeration({ id: post.user_id, name }, { postId: post.id }, () => onBlocked(post.user_id));
   }
 
@@ -198,7 +199,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
       <LikersPanel post={likers} onClose={() => setLikers(null)} />
       <PeoplePicker
         visible={sharing !== null}
-        title="Enviar para…"
+        title={t('Enviar para…')}
         onPick={(person) => sharing && shareTo(sharing, person.id)}
         onClose={() => setSharing(null)}
       />

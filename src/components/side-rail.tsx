@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 
 import { BackIcon } from '@/components/rail-icons';
 import { Colors, FrameRatio, RailWidth, Spacing } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 
 type RailButtonProps = Omit<TabTriggerSlotProps, 'ref'> & {
   label: string;
@@ -20,7 +21,7 @@ export function RailButton({ label, route, Icon, badge, isFocused: _isFocused, .
   const pathname = usePathname();
   const color = pathname === route ? Colors.text : Colors.textMuted;
   return (
-    <Pressable {...props} accessibilityLabel={badge ? `${label}, há novidades` : label} style={styles.button}>
+    <Pressable {...props} accessibilityLabel={badge ? t('{label}, há novidades', { label }) : label} style={styles.button}>
       <View>
         <Icon color={color} />
         {badge ? <View style={styles.badge} /> : null}
@@ -49,10 +50,10 @@ export function BackButton() {
       onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel="Voltar"
+      accessibilityLabel={t('Voltar')}
       style={styles.button}>
       <BackIcon color={Colors.text} />
-      <Text style={[styles.label, { color: Colors.text }]}>Voltar</Text>
+      <Text style={[styles.label, { color: Colors.text }]}>{t('Voltar')}</Text>
     </Pressable>
   );
 }

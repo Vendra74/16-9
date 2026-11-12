@@ -76,7 +76,7 @@ async function displayName(userId: string) {
     'profiles',
     `select=display_name,username&id=eq.${userId}`,
   );
-  return profile?.display_name || (profile?.username ? `@${profile.username}` : 'Alguém');
+  return profile?.display_name || (profile?.username ? `@${profile.username}` : null);
 }
 
 /** Verdadeiro se qualquer um dos dois bloqueou o outro. */
@@ -96,11 +96,99 @@ function clip(text: string, max = 140) {
 
 // ---------- O que notificar ----------
 
-type Push = { to: string; title: string; body: string; data: Record<string, string> };
+// ---------- Textos, no idioma de cada aparelho ----------
+
+const TEXTS = {
+  pt: {
+    someone: 'Alguém',
+    photo: 'Enviou uma foto',
+    video: 'Enviou um vídeo',
+    shared: 'Compartilhou um trabalho com você',
+    reply: 'Responderam seu comentário',
+    comment: 'Novo comentário',
+    like: 'Nova curtida',
+    liked: '{name} curtiu {work}',
+    yourWork: 'seu trabalho',
+  },
+  en: {
+    someone: 'Someone',
+    photo: 'Sent a photo',
+    video: 'Sent a video',
+    shared: 'Shared a work with you',
+    reply: 'New reply to your comment',
+    comment: 'New comment',
+    like: 'New like',
+    liked: '{name} liked {work}',
+    yourWork: 'your work',
+  },
+  es: {
+    someone: 'Alguien',
+    photo: 'Envió una foto',
+    video: 'Envió un video',
+    shared: 'Compartió un trabajo contigo',
+    reply: 'Respondieron a tu comentario',
+    comment: 'Nuevo comentario',
+    like: 'Nuevo me gusta',
+    liked: 'A {name} le gustó {work}',
+    yourWork: 'tu trabajo',
+  },
+  fr: {
+    someone: 'Quelqu’un',
+    photo: 'A envoyé une photo',
+    video: 'A envoyé une vidéo',
+    shared: 'A partagé un travail avec vous',
+    reply: 'Nouvelle réponse à votre commentaire',
+    comment: 'Nouveau commentaire',
+    like: 'Nouveau j’aime',
+    liked: '{name} a aimé {work}',
+    yourWork: 'votre travail',
+  },
+  it: {
+    someone: 'Qualcuno',
+    photo: 'Ha inviato una foto',
+    video: 'Ha inviato un video',
+    shared: 'Ha condiviso un lavoro con te',
+    reply: 'Nuova risposta al tuo commento',
+    comment: 'Nuovo commento',
+    like: 'Nuovo mi piace',
+    liked: 'A {name} piace {work}',
+    yourWork: 'il tuo lavoro',
+  },
+  de: {
+    someone: 'Jemand',
+    photo: 'Hat ein Foto gesendet',
+    video: 'Hat ein Video gesendet',
+    shared: 'Hat eine Arbeit mit dir geteilt',
+    reply: 'Neue Antwort auf deinen Kommentar',
+    comment: 'Neuer Kommentar',
+    like: 'Neues Like',
+    liked: '{name} gefällt {work}',
+    yourWork: 'deine Arbeit',
+  },
+};
+
+type Language = keyof typeof TEXTS;
+type Texts = (typeof TEXTS)[Language];
+
+/** Idioma gravado com o aparelho; sem idioma (aparelho antigo), português. */
+function textsFor(language: string | undefined): Texts {
+  return TEXTS[(language ?? '') as Language] ?? TEXTS.pt;
+}
+
+/** `write` monta o título e o texto no idioma do aparelho que vai receber. */
+type Push = {
+  to: string;
+  data: Record<string, string>;
+  write: (texts: Texts) => { title: string; body: string };
+};
 
 /** Monta a notificação, ou devolve o motivo de não enviar. */
 async function compose(userId: string, input: Record<string, unknown>): Promise<Push | { skipped: string }> {
-  const sender = () => displayName(userId);
+  // Quem não tem nome vira "Alguém" no idioma de quem recebe.
+  const sender = async () => {
+    const name = await displayName(userId);
+    return (texts: Texts) => name ?? texts.someone;
+  };
 
   if (input.kind === 'message') {
     if (typeof input.id !== 'string' || !UUID.test(input.id)) return { skipped: 'bad_id' };
@@ -118,17 +206,20 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
     );
     if (!conversation) return { skipped: 'not_found' };
     const to = conversation.user_a === userId ? conversation.user_b : conversation.user_a;
+    const name = await sender();
     return {
       to,
-      title: await sender(),
-      body: message.body
-        ? clip(message.body)
-        : message.kind === 'photo'
-          ? 'Enviou uma foto'
-          : message.kind === 'video'
-            ? 'Enviou um vídeo'
-            : 'Compartilhou um trabalho com você',
       data: { type: 'message', c: message.conversation_id },
+      write: (texts) => ({
+        title: name(texts),
+        body: message.body
+          ? clip(message.body)
+          : message.kind === 'photo'
+            ? texts.photo
+            : message.kind === 'video'
+              ? texts.video
+              : texts.shared,
+      }),
     };
   }
 
@@ -145,20 +236,20 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
     if (comment.parent_id) {
       const [parent] = await db<{ user_id: string }>('GET', 'comments', `select=user_id&id=eq.${comment.parent_id}`);
       if (!parent) return { skipped: 'not_found' };
+      const name = await sender();
       return {
         to: parent.user_id,
-        title: 'Responderam seu comentário',
-        body: `${await sender()}: ${clip(comment.body, 110)}`,
         data: { type: 'comment', post: comment.post_id },
+        write: (texts) => ({ title: texts.reply, body: `${name(texts)}: ${clip(comment.body, 110)}` }),
       };
     }
     const [post] = await db<{ user_id: string }>('GET', 'posts', `select=user_id&id=eq.${comment.post_id}`);
     if (!post) return { skipped: 'not_found' };
+    const name = await sender();
     return {
       to: post.user_id,
-      title: 'Novo comentário',
-      body: `${await sender()}: ${clip(comment.body, 110)}`,
       data: { type: 'comment', post: comment.post_id },
+      write: (texts) => ({ title: texts.comment, body: `${name(texts)}: ${clip(comment.body, 110)}` }),
     };
   }
 
@@ -177,11 +268,17 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
       `select=user_id,title&id=eq.${input.post_id}`,
     );
     if (!post) return { skipped: 'not_found' };
+    const name = await sender();
+    const postId = input.post_id;
     return {
       to: post.user_id,
-      title: 'Nova curtida',
-      body: `${await sender()} curtiu ${post.title ? `"${clip(post.title, 60)}"` : 'seu trabalho'}`,
-      data: { type: 'like', post: input.post_id },
+      data: { type: 'like', post: postId },
+      write: (texts) => ({
+        title: texts.like,
+        body: texts.liked
+          .replace('{name}', () => name(texts))
+          .replace('{work}', () => (post.title ? `"${clip(post.title, 60)}"` : texts.yourWork)),
+      }),
     };
   }
 
@@ -191,14 +288,15 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
 // ---------- Envio (serviço de push da Expo) ----------
 
 async function send(push: Push) {
-  const tokens = await db<{ token: string }>('GET', 'push_tokens', `select=token&user_id=eq.${push.to}`);
+  // select=* para funcionar também antes de a coluna de idioma existir no banco.
+  const tokens = await db<{ token: string; language?: string }>('GET', 'push_tokens', `select=*&user_id=eq.${push.to}`);
   if (tokens.length === 0) return { sent: 0 };
 
   const res = await fetch(EXPO_PUSH_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify(
-      tokens.map(({ token }) => ({ to: token, title: push.title, body: push.body, data: push.data, sound: 'default' })),
+      tokens.map(({ token, language }) => ({ to: token, ...push.write(textsFor(language)), data: push.data, sound: 'default' })),
     ),
   });
   if (!res.ok) {

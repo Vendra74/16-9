@@ -11,6 +11,7 @@ import { fetchLikers, type Liker } from '@/lib/likes';
 import type { FeedPost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
 import { openMyProfile } from '@/lib/viewer';
+import { t } from '@/lib/i18n';
 
 type Props = {
   /** O post cujas curtidas aparecem; `null` fecha. */
@@ -26,8 +27,8 @@ export function LikersPanel({ post, onClose }: Props) {
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { marginTop: Math.max(insets.top, Spacing.md) }]}>
           <View style={styles.header}>
-            <Text style={styles.title}>Curtidas</Text>
-            <Button variant="ghost" title="Fechar" onPress={onClose} />
+            <Text style={styles.title}>{t('Curtidas')}</Text>
+            <Button variant="ghost" title={t('Fechar')} onPress={onClose} />
           </View>
           {post ? <List key={post.id} postId={post.id} onClose={onClose} /> : null}
         </View>
@@ -68,8 +69,8 @@ function List({ postId, onClose }: { postId: string; onClose: () => void }) {
       <View style={styles.center}>
         {failed ? (
           <>
-            <Text style={styles.empty}>Não foi possível carregar as curtidas.</Text>
-            <Button variant="ghost" title="Tentar de novo" onPress={() => setAttempt((n) => n + 1)} />
+            <Text style={styles.empty}>{t('Não foi possível carregar as curtidas.')}</Text>
+            <Button variant="ghost" title={t('Tentar de novo')} onPress={() => setAttempt((n) => n + 1)} />
           </>
         ) : (
           <ApertureLoader size={32} background={Colors.surface} />
@@ -82,7 +83,7 @@ function List({ postId, onClose }: { postId: string; onClose: () => void }) {
     <FlatList
       data={people}
       keyExtractor={(p) => p.id}
-      ListEmptyComponent={<Text style={styles.empty}>Ninguém curtiu ainda.</Text>}
+      ListEmptyComponent={<Text style={styles.empty}>{t('Ninguém curtiu ainda.')}</Text>}
       renderItem={({ item }) => {
         const name = item.display_name || item.username;
         return (
@@ -90,7 +91,7 @@ function List({ postId, onClose }: { postId: string; onClose: () => void }) {
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
             onPress={() => open(item)}
             accessibilityRole="button"
-            accessibilityLabel={`Ver o perfil de ${name}`}>
+            accessibilityLabel={t('Ver o perfil de {name}', { name })}>
             <Avatar name={name} url={item.avatar_url} size={36} />
             <View style={styles.flex}>
               <Text style={styles.name} numberOfLines={1}>
