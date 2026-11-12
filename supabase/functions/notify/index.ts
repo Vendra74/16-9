@@ -4,6 +4,7 @@
 //   { kind: 'message', id }        → para a outra pessoa da conversa
 //   { kind: 'comment', id }        → para quem publicou o post
 //   { kind: 'like', post_id }      → para quem publicou o post
+//   { kind: 'follow', user_id }    → para quem passou a ser seguido
 //
 // O app só diz "acabei de fazer isto". A função confere no banco que o
 // registro existe, é de quem chamou e é recente, e decide sozinha quem recebe
@@ -110,6 +111,8 @@ const TEXTS = {
     like: 'Nova curtida',
     liked: '{name} curtiu {work}',
     yourWork: 'seu trabalho',
+    follow: 'Novo seguidor',
+    followed: '{name} começou a seguir você',
   },
   en: {
     someone: 'Someone',
@@ -122,6 +125,8 @@ const TEXTS = {
     like: 'New like',
     liked: '{name} liked {work}',
     yourWork: 'your work',
+    follow: 'New follower',
+    followed: '{name} started following you',
   },
   es: {
     someone: 'Alguien',
@@ -134,6 +139,8 @@ const TEXTS = {
     like: 'Nuevo me gusta',
     liked: 'A {name} le gustó {work}',
     yourWork: 'tu trabajo',
+    follow: 'Nuevo seguidor',
+    followed: '{name} empezó a seguirte',
   },
   fr: {
     someone: 'Quelqu’un',
@@ -146,6 +153,8 @@ const TEXTS = {
     like: 'Nouveau j’aime',
     liked: '{name} a aimé {work}',
     yourWork: 'votre travail',
+    follow: 'Nouvel abonné',
+    followed: '{name} s’est abonné à vous',
   },
   it: {
     someone: 'Qualcuno',
@@ -158,6 +167,8 @@ const TEXTS = {
     like: 'Nuovo mi piace',
     liked: 'A {name} piace {work}',
     yourWork: 'il tuo lavoro',
+    follow: 'Nuovo follower',
+    followed: '{name} ha iniziato a seguirti',
   },
   de: {
     someone: 'Jemand',
@@ -170,6 +181,8 @@ const TEXTS = {
     like: 'Neues Like',
     liked: '{name} gefällt {work}',
     yourWork: 'deine Arbeit',
+    follow: 'Neuer Follower',
+    followed: '{name} folgt dir jetzt',
   },
 };
 
@@ -287,6 +300,23 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
           .replace('{name}', () => name(texts))
           .replace('{work}', () => (post.title ? `"${clip(post.title, 60)}"` : texts.yourWork)),
       }),
+    };
+  }
+
+  if (input.kind === 'follow') {
+    if (typeof input.user_id !== 'string' || !UUID.test(input.user_id)) return { skipped: 'bad_id' };
+    const [row] = await db<{ created_at: string }>(
+      'GET',
+      'follows',
+      `select=created_at&follower=eq.${userId}&followed=eq.${input.user_id}`,
+    );
+    if (!row) return { skipped: 'not_found' };
+    if (!isFresh(row.created_at)) return { skipped: 'stale' };
+    const name = await sender();
+    return {
+      to: input.user_id,
+      data: { type: 'follow', user: userId },
+      write: (texts) => ({ title: texts.follow, body: texts.followed.replace('{name}', () => name(texts)) }),
     };
   }
 

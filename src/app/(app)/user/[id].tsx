@@ -5,10 +5,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
+import { FollowPanel } from '@/components/follow-panel';
 import { Button, FormMessage } from '@/components/form';
+import { MutualFollowersLine } from '@/components/mutual-followers';
+import { ProfileCountsRow } from '@/components/profile-counts';
+import { ProfileLinks } from '@/components/profile-links';
 import { BackButton } from '@/components/side-rail';
 import { WorkTile } from '@/components/work-tile';
 import { Colors, Spacing } from '@/constants/theme';
+import {
+  fetchCounts,
+  fetchMutualFollowers,
+  follow,
+  isFollowing,
+  unfollow,
+  type FollowKind,
+  type MutualFollowers,
+  type ProfileCounts,
+} from '@/lib/follows';
 import { isBlockedByMe, startConversation, unblockUser } from '@/lib/messages';
 import { askModeration } from '@/lib/moderation';
 import { fetchUserPosts, type FeedPost } from '@/lib/posts';
@@ -20,7 +34,14 @@ import { plural, t } from '@/lib/i18n';
 const GAP = Spacing.sm;
 const MIN_TILE = 170;
 
-type Loaded = { profile: Profile; posts: FeedPost[]; blocked: boolean };
+type Loaded = {
+  profile: Profile;
+  posts: FeedPost[];
+  blocked: boolean;
+  counts: ProfileCounts;
+  following: boolean;
+  mutual: MutualFollowers;
+};
 
 /** Perfil de outra pessoa: quem é, o portfólio em 16:9 e o caminho para conversar. */
 export default function UserScreen() {
@@ -31,16 +52,26 @@ export default function UserScreen() {
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [width, setWidth] = useState(0);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [list, setList] = useState<FollowKind | null>(null);
+  const me = session?.user.id;
 
   const load = useCallback(async () => {
     try {
-      const [profile, posts, blocked] = await Promise.all([fetchProfile(id), fetchUserPosts(id), isBlockedByMe(id)]);
-      setData({ profile, posts, blocked });
+      const [profile, posts, blocked, counts, following, mutual] = await Promise.all([
+        fetchProfile(id),
+        fetchUserPosts(id),
+        isBlockedByMe(id),
+        fetchCounts(id),
+        me ? isFollowing(me, id) : Promise.resolve(false),
+        fetchMutualFollowers(id),
+      ]);
+      setData({ profile, posts, blocked, counts, following, mutual });
       setError(false);
     } catch {
       setError(true);
     }
-  }, [id]);
+  }, [id, me]);
 
   // Recarrega ao voltar para a tela (ex.: depois de curtir um trabalho aberto daqui).
   useFocusEffect(
@@ -69,7 +100,7 @@ export default function UserScreen() {
     );
   }
 
-  const { profile, posts, blocked } = data;
+  const { profile, posts, blocked, counts, following, mutual } = data;
   const name = profile.display_name || profile.username;
   const details = [profile.specialty, profile.city].filter(Boolean).join(' · ');
   const columns = Math.max(2, Math.floor((width + GAP) / (MIN_TILE + GAP)));
@@ -84,6 +115,24 @@ export default function UserScreen() {
       Alert.alert(t('Não foi possível abrir a conversa'), e instanceof Error ? e.message : undefined);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function toggleFollow() {
+    if (!me || !data) return;
+    const next = !following;
+    const change = (value: boolean, delta: number) =>
+      setData((d) => (d ? { ...d, following: value, counts: { ...d.counts, followers: Math.max(0, d.counts.followers + delta) } } : d));
+    change(next, next ? 1 : -1);
+    setFollowBusy(true);
+    try {
+      if (next) await follow(profile.id);
+      else await unfollow(me, profile.id);
+    } catch {
+      change(!next, next ? -1 : 1);
+      Alert.alert(t('Não foi possível seguir agora'), t('Confira a internet e tente de novo.'));
+    } finally {
+      setFollowBusy(false);
     }
   }
 
@@ -109,7 +158,10 @@ export default function UserScreen() {
         <Text style={styles.name}>{name}</Text>
         <Text style={styles.handle}>@{profile.username}</Text>
         {details ? <Text style={styles.details}>{details}</Text> : null}
+        <ProfileCountsRow counts={counts} onOpen={setList} />
         {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+        {blocked ? null : <ProfileLinks links={profile.links} />}
+        {blocked ? null : <MutualFollowersLine mutual={mutual} onPress={() => setList('followers')} />}
 
         <View style={styles.actions}>
           {blocked ? (
@@ -119,7 +171,13 @@ export default function UserScreen() {
             </>
           ) : (
             <>
-              <Button title={t('Mensagem')} onPress={message} loading={busy} />
+              <Button
+                variant={following ? 'ghost' : 'primary'}
+                title={following ? t('Seguindo') : t('Seguir')}
+                onPress={toggleFollow}
+                disabled={followBusy}
+              />
+              <Button variant={following ? 'primary' : 'ghost'} title={t('Mensagem')} onPress={message} loading={busy} />
               <Button
                 variant="ghost"
                 title={t('Mais opções')}
@@ -155,6 +213,13 @@ export default function UserScreen() {
           </>
         )}
       </ScrollView>
+      <FollowPanel
+        userId={list ? profile.id : null}
+        kind={list ?? 'followers'}
+        onKindChange={setList}
+        onClose={() => setList(null)}
+        onChanged={load}
+      />
     </View>
   );
 }

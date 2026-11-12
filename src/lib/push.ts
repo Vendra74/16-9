@@ -13,7 +13,8 @@ import { supabase } from '@/lib/supabase';
 export type PushEvent =
   | { kind: 'message'; id: string }
   | { kind: 'comment'; id: string }
-  | { kind: 'like'; post_id: string };
+  | { kind: 'like'; post_id: string }
+  | { kind: 'follow'; user_id: string };
 
 const supported = Platform.OS !== 'web';
 
@@ -83,9 +84,11 @@ export function notify(event: PushEvent) {
 }
 
 function open(data: unknown) {
-  const d = (data ?? {}) as { type?: string; c?: string };
+  const d = (data ?? {}) as { type?: string; c?: string; user?: string };
   if (d.type === 'message' && typeof d.c === 'string') {
     router.navigate({ pathname: '/messages', params: { c: d.c } });
+  } else if (d.type === 'follow' && typeof d.user === 'string') {
+    router.push({ pathname: '/user/[id]', params: { id: d.user } });
   } else if (d.type === 'comment' || d.type === 'like') {
     router.navigate('/profile');
   }

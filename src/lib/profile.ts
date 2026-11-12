@@ -9,6 +9,8 @@ export type Profile = {
   city: string;
   bio: string;
   avatar_url: string | null;
+  /** Site, portfólio, redes. Some se o SQL dos links ainda não foi rodado. */
+  links?: string[];
 };
 
 export type ProfileChanges = Partial<Omit<Profile, 'id'>>;
@@ -27,13 +29,14 @@ export function normalizeUsername(value: string) {
 }
 
 export async function fetchProfile(userId: string) {
+  // `*` traz os links quando a coluna existe, sem quebrar o perfil se o SQL ainda não rodou.
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, specialty, city, bio, avatar_url')
+    .select('*')
     .eq('id', userId)
     .single<Profile>();
   if (error) throw error;
-  return data;
+  return { ...data, links: data.links ?? [] };
 }
 
 /** Busca criadores pelo nome, @, especialidade ou cidade. */
