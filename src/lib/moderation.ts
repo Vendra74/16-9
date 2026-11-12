@@ -4,7 +4,7 @@ import { blockUser, report } from '@/lib/messages';
 import { t } from '@/lib/i18n';
 
 /** O motivo é gravado sempre em português, para a equipe ler; na tela aparece traduzido. */
-const REASONS = [
+const reasons = () => [
   { value: 'Spam', label: t('Spam') },
   { value: 'Conteúdo impróprio', label: t('Conteúdo impróprio') },
   { value: 'Assédio ou ofensa', label: t('Assédio ou ofensa') },
@@ -14,7 +14,7 @@ const REASONS = [
 /** Pergunta o motivo e registra a denúncia. */
 export function askReport(target: { userId?: string; postId?: string; messageId?: string; commentId?: string }) {
   Alert.alert(t('Denunciar'), t('Qual o problema? A equipe do 16:9 vai analisar.'), [
-    ...REASONS.map((reason) => ({
+    ...reasons().map((reason) => ({
       text: reason.label,
       onPress: async () => {
         try {

@@ -1,6 +1,7 @@
 // Confere as traduções: todo texto usado em t('…') ou plural(n, '…', '…') precisa
 // existir em cada arquivo de src/locales, com os mesmos {valores}, e nenhum arquivo
-// pode guardar texto que as telas não usam mais. Rodar: npm run i18n
+// pode guardar texto que as telas não usam mais. Também acusa t() fora de função,
+// que ficaria preso ao idioma da abertura do app. Rodar: npm run i18n
 const fs = require('fs');
 const path = require('path');
 const ts = require('typescript');
@@ -22,10 +23,15 @@ for (const file of sources(root)) {
   if (file.endsWith(path.join('lib', 'i18n.ts'))) continue;
   const kind = file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, kind);
-  (function visit(node) {
+  (function visit(node, inFunction) {
+    if (ts.isFunctionLike(node)) inFunction = true;
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       const name = node.expression.text;
       const texts = name === 't' ? [node.arguments[0]] : name === 'plural' ? [node.arguments[1], node.arguments[2]] : [];
+      if (texts.length && !inFunction) {
+        const { line } = source.getLineAndCharacterOfPosition(node.getStart());
+        problems.push(`${path.relative(root, file)}:${line + 1}: ${name}() solto no arquivo não acompanha a troca de idioma; chame dentro de uma função`);
+      }
       for (const text of texts) {
         if (text && ts.isStringLiteral(text)) keys.add(text.text);
         else {
@@ -34,8 +40,8 @@ for (const file of sources(root)) {
         }
       }
     }
-    ts.forEachChild(node, visit);
-  })(source);
+    ts.forEachChild(node, (child) => visit(child, inFunction));
+  })(source, false);
 }
 
 /** Lê o objeto exportado de um arquivo de src/locales. */

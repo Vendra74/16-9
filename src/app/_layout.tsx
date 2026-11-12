@@ -2,10 +2,12 @@ import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { SplashOverlay } from '@/components/splash-overlay';
 import { Colors } from '@/constants/theme';
+import { loadLanguage, useLanguage } from '@/lib/i18n';
 import { SessionProvider, useSession } from '@/lib/session';
 
 SplashScreen.preventAutoHideAsync();
@@ -32,12 +34,18 @@ export default function RootLayout() {
 /** Sem sessão, só a tela de entrada existe; com sessão, o app inteiro. */
 function RootNavigator() {
   const { session, loading } = useSession();
+  const { language, loaded } = useLanguage();
 
-  // A abertura com o diafragma cobre a tela enquanto a sessão salva é lida.
-  if (loading) return <View style={styles.blank} />;
+  useEffect(() => {
+    loadLanguage();
+  }, []);
 
+  // A abertura com o diafragma cobre a tela enquanto a sessão e o idioma salvos são lidos.
+  if (loading || !loaded) return <View style={styles.blank} />;
+
+  // A chave remonta as telas quando o idioma muda, para todos os textos saírem no idioma novo.
   return (
-    <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+    <Stack key={language} screenOptions={{ headerShown: false, animation: 'fade' }}>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>

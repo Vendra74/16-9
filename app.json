@@ -100,6 +100,13 @@
       "fr": "./locales/fr.json",
       "it": "./locales/it.json",
       "de": "./locales/de.json"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "63f4fa58-1428-415c-86db-1fb48d20dad8"
+      }
+    },
+    "owner": "vendra74s-team"
   }
 }

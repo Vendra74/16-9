@@ -26,9 +26,9 @@ import { unregisterFromPush } from '@/lib/push';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { openViewer } from '@/lib/viewer';
-import { plural, t } from '@/lib/i18n';
+import { LANGUAGE_NAMES, plural, setLanguage, t, useLanguage, type Language } from '@/lib/i18n';
 
-type Panel = 'works' | 'edit' | 'feedback' | 'blocked';
+type Panel = 'works' | 'edit' | 'feedback' | 'blocked' | 'language';
 
 export default function ProfileScreen() {
   const { session } = useSession();
@@ -143,6 +143,11 @@ export default function ProfileScreen() {
             title={t('Bloqueados')}
             onPress={() => setPanel(panel === 'blocked' ? 'works' : 'blocked')}
           />
+          <Button
+            variant={panel === 'language' ? 'primary' : 'ghost'}
+            title={t('Idioma')}
+            onPress={() => setPanel(panel === 'language' ? 'works' : 'language')}
+          />
           <Button variant="ghost" title={t('Sair')} onPress={async () => {
               await unregisterFromPush();
               await supabase.auth.signOut();
@@ -169,6 +174,8 @@ export default function ProfileScreen() {
           <FeedbackForm onSent={() => setPanel('works')} />
         ) : panel === 'blocked' ? (
           <BlockedList />
+        ) : panel === 'language' ? (
+          <LanguagePicker />
         ) : (
           <MyWorks userId={profile.id} />
         )}
@@ -315,6 +322,37 @@ function BlockedList() {
           })}
         </>
       )}
+    </View>
+  );
+}
+
+/** Escolha do idioma do app: seguir o aparelho ou fixar um dos idiomas. */
+function LanguagePicker() {
+  const { choice } = useLanguage();
+  const options: { value: Language | null; label: string }[] = [
+    { value: null, label: t('Automático (idioma do aparelho)') },
+    ...(Object.keys(LANGUAGE_NAMES) as Language[]).map((value) => ({ value, label: LANGUAGE_NAMES[value] })),
+  ];
+
+  return (
+    <View style={styles.form}>
+      <Text style={styles.formTitle}>{t('Idioma')}</Text>
+      <Text style={styles.emptyText}>{t('Escolha o idioma do 16:9. A troca vale na hora.')}</Text>
+      <View style={styles.languages}>
+        {options.map((option) => {
+          const selected = option.value === choice;
+          return (
+            <Pressable
+              key={option.value ?? 'auto'}
+              style={({ pressed }) => [styles.language, selected && styles.languageSelected, pressed && styles.languagePressed]}
+              onPress={() => setLanguage(option.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}>
+              <Text style={[styles.languageText, selected && styles.languageTextSelected]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -571,6 +609,33 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 11,
     marginTop: Spacing.xs,
+  },
+  languages: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  language: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.textMuted,
+  },
+  languageSelected: {
+    backgroundColor: Colors.text,
+    borderColor: Colors.text,
+  },
+  languagePressed: {
+    opacity: 0.6,
+  },
+  languageText: {
+    color: Colors.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  languageTextSelected: {
+    color: Colors.background,
   },
   blockedRow: {
     flexDirection: 'row',
