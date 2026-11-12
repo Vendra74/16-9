@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
 import { Button, FormMessage } from '@/components/form';
+import { ProfileLinks } from '@/components/profile-links';
 import { BackButton } from '@/components/side-rail';
 import { WorkTile } from '@/components/work-tile';
 import { Colors, Spacing } from '@/constants/theme';
@@ -110,6 +111,7 @@ export default function UserScreen() {
         <Text style={styles.handle}>@{profile.username}</Text>
         {details ? <Text style={styles.details}>{details}</Text> : null}
         {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+        {blocked ? null : <ProfileLinks links={profile.links} />}
 
         <View style={styles.actions}>
           {blocked ? (

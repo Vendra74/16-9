@@ -277,4 +277,12 @@ export const en: Record<string, string> = {
   'Apaga de vez seu perfil, seus trabalhos, fotos, vídeos, comentários, curtidas e conversas.': 'Permanently deletes your profile, work, photos, videos, comments, likes and conversations.',
   'Apagar minha conta': 'Delete my account',
   'Ao criar a conta, você concorda com os Termos de uso e a Política de privacidade. Nudez, violência, assédio e conteúdo ilegal não são permitidos.': 'By creating an account, you agree to the Terms of use and the Privacy policy. Nudity, violence, harassment and illegal content are not allowed.',
+  // Bio e links no perfil
+  'Abrir {link}': 'Open {link}',
+  '+ Adicionar bio e links': '+ Add bio and links',
+  'Confira este link: {link}': 'Check this link: {link}',
+  'Links': 'Links',
+  'Site, portfólio, Instagram, Vimeo… até {n} links.': 'Website, portfolio, Instagram, Vimeo… up to {n} links.',
+  'seusite.com.br': 'yourwebsite.com',
+  'instagram.com/seuperfil': 'instagram.com/yourprofile',
 };

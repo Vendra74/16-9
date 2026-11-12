@@ -277,4 +277,12 @@ export const it: Record<string, string> = {
   'Apaga de vez seu perfil, seus trabalhos, fotos, vídeos, comentários, curtidas e conversas.': 'Elimina per sempre il tuo profilo, i tuoi lavori, foto, video, commenti, mi piace e conversazioni.',
   'Apagar minha conta': 'Elimina il mio account',
   'Ao criar a conta, você concorda com os Termos de uso e a Política de privacidade. Nudez, violência, assédio e conteúdo ilegal não são permitidos.': 'Creando un account accetti i Termini d\'uso e l\'Informativa sulla privacy. Nudità, violenza, molestie e contenuti illegali non sono consentiti.',
+  // Bio e links no perfil
+  'Abrir {link}': 'Apri {link}',
+  '+ Adicionar bio e links': '+ Aggiungi bio e link',
+  'Confira este link: {link}': 'Controlla questo link: {link}',
+  'Links': 'Link',
+  'Site, portfólio, Instagram, Vimeo… até {n} links.': 'Sito, portfolio, Instagram, Vimeo… fino a {n} link.',
+  'seusite.com.br': 'tuosito.it',
+  'instagram.com/seuperfil': 'instagram.com/tuoprofilo',
 };

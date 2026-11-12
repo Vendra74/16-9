@@ -17,7 +17,7 @@ type FieldProps = TextInputProps & { label: string; hint?: string; ref?: Ref<Com
 export function Field({ label, hint, style, ref, ...props }: FieldProps) {
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <TextInput
         ref={ref}
         placeholderTextColor={Colors.textMuted}
