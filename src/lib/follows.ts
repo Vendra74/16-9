@@ -1,3 +1,4 @@
+import { notify } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 
 export type FollowPerson = {
@@ -41,8 +42,12 @@ export async function isFollowing(me: string, userId: string) {
 
 export async function follow(userId: string) {
   const { error } = await supabase.from('follows').insert({ followed: userId });
-  // Já seguia (toque duplo rápido): tudo bem.
-  if (error && error.code !== '23505') throw error;
+  // Já seguia (toque duplo rápido): tudo bem, e não avisa de novo.
+  if (error) {
+    if (error.code === '23505') return;
+    throw error;
+  }
+  notify({ kind: 'follow', user_id: userId });
 }
 
 export async function unfollow(me: string, userId: string) {

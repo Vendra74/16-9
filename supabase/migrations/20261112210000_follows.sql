@@ -96,3 +96,21 @@ $$;
 
 revoke all on function public.followed_by_people_i_follow(uuid) from public, anon;
 grant execute on function public.followed_by_people_i_follow(uuid) to authenticated;
+
+-- Aba "Seguindo" do feed: os posts de quem você segue. Roda com as regras de
+-- quem chama, então continua escondendo vídeos em processamento e bloqueados.
+create or replace function public.following_posts()
+returns setof public.posts
+language sql
+stable
+set search_path = ''
+as $$
+  select p.*
+  from public.posts p
+  where p.user_id in (
+    select f.followed from public.follows f where f.follower = (select auth.uid())
+  );
+$$;
+
+revoke all on function public.following_posts() from public, anon;
+grant execute on function public.following_posts() to authenticated;

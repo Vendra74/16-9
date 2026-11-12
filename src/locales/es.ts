@@ -300,4 +300,7 @@ export const es: Record<string, string> = {
   'seguidor': 'seguidor',
   'seguidores': 'seguidores',
   'seguindo': 'siguiendo',
+  'Para você': 'Para ti',
+  'Siga criadores para ver os trabalhos deles aqui': 'Sigue a creadores para ver sus trabajos aquí',
+  'Encontre gente no Explorar e toque em Seguir no perfil.': 'Encuentra gente en Explorar y toca Seguir en su perfil.',
 };
