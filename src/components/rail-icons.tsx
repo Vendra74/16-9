@@ -107,3 +107,22 @@ export function BackIcon({ color, size = 26 }: IconProps) {
     </Svg>
   );
 }
+
+/** Microfone: gravar mensagem de voz. */
+export function MicIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 3.5a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0v-5a3 3 0 0 0-3-3Z" stroke={color} strokeWidth={1.8} strokeLinejoin="round" />
+      <Path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** Tocar (triângulo) ou pausar (duas barras). */
+export function PlayIcon({ color, size = 22, playing = false }: IconProps & { playing?: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      {playing ? <Path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /> : <Path d="M8 4.8v14.4a.6.6 0 0 0 .92.5l11.1-7.2a.6.6 0 0 0 0-1L8.92 4.3A.6.6 0 0 0 8 4.8Z" />}
+    </Svg>
+  );
+}

@@ -124,6 +124,10 @@ reset(); tables.push_tokens = [{ token: 'ExponentPushToken[b1]', user_id: B, lan
 tables.messages[0].body = ''; tables.messages[0].kind = 'photo'; tables.profiles[0] = { id: A, display_name: '', username: '' };
 await call('Bearer a', { kind: 'message', id: MSG });
 assert.deepEqual([sentBatches[0][0].title, sentBatches[0][0].body], ['Alguien', 'Envió una foto']);
+tables.messages[0].kind = 'audio';
+await call('Bearer a', { kind: 'message', id: MSG });
+assert.equal(sentBatches[1][0].body, 'Envió un mensaje de voz');
+sentBatches.shift();
 tables.comments[0].parent_id = null;
 await call('Bearer a', { kind: 'comment', id: COMMENT });
 assert.deepEqual([sentBatches[1][0].title, sentBatches[1][0].body], ['Nuevo comentario', 'Alguien: Que luz!']);

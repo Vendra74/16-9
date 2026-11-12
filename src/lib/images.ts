@@ -21,21 +21,33 @@ async function readBytes(uri: string) {
   return new File(uri).arrayBuffer();
 }
 
-/** Envia um JPEG para `<bucket>/<pasta>/<nome>.jpg` e devolve o caminho. */
-export async function uploadJpeg(bucket: 'posts' | 'avatars' | 'messages', folder: string, uri: string) {
+async function upload(bucket: string, folder: string, uri: string, extension: string, contentType: string) {
   const random = Math.random().toString(36).slice(2, 10);
-  const path = `${folder}/${Date.now()}-${random}.jpg`;
+  const path = `${folder}/${Date.now()}-${random}.${extension}`;
   const body = await readBytes(uri);
-  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType: 'image/jpeg' });
+  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType });
   if (error) throw error;
   return path;
 }
 
-/** Endereços temporários das imagens das conversas (bucket privado), guardados enquanto valem. */
+/** Envia um JPEG para `<bucket>/<pasta>/<nome>.jpg` e devolve o caminho. */
+export function uploadJpeg(bucket: 'posts' | 'avatars' | 'messages', folder: string, uri: string) {
+  return upload(bucket, folder, uri, 'jpg', 'image/jpeg');
+}
+
+/** Envia uma gravação de voz para a pasta da conversa e devolve o caminho. */
+export function uploadVoice(folder: string, uri: string) {
+  // O iPhone e o Android gravam em m4a; o navegador, em webm.
+  return Platform.OS === 'web'
+    ? upload('messages', folder, uri, 'webm', 'audio/webm')
+    : upload('messages', folder, uri, 'm4a', 'audio/mp4');
+}
+
+/** Endereços temporários das imagens e dos áudios das conversas (bucket privado), guardados enquanto valem. */
 const signed = new Map<string, { url: string; expires: number }>();
 const SIGNED_SECONDS = 3600;
 
-/** Endereço temporário para abrir uma imagem de conversa. Só funciona para quem está nela. */
+/** Endereço temporário para abrir uma imagem ou um áudio de conversa. Só funciona para quem está nela. */
 export async function messageImageUrl(path: string) {
   const cached = signed.get(path);
   // Renova com folga, para a imagem não expirar no meio do uso.

@@ -1,7 +1,7 @@
 {
   "ios": {
     "NSCameraUsageDescription": "16:9 usa la fotocamera per farti registrare e pubblicare video.",
-    "NSMicrophoneUsageDescription": "16:9 usa il microfono per registrare l’audio dei tuoi video.",
+    "NSMicrophoneUsageDescription": "16:9 usa il microfono per registrare l’audio dei tuoi video e i tuoi messaggi vocali.",
     "NSPhotoLibraryUsageDescription": "16:9 apre le tue foto e i tuoi video per farti pubblicare lavori e scegliere la foto del profilo."
   }
 }
