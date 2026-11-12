@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -37,6 +38,14 @@ let currentToken: string | null = null;
 export async function registerForPush() {
   if (!supported || !Device.isDevice) return;
   try {
+    // Android: as notificações precisam de um canal, e sem ele o Android 13+ nem pergunta a permissão.
+    // O servidor da Expo entrega no canal "default"; importância alta mostra a faixa no topo.
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Avisos',
+        importance: AndroidImportance.HIGH,
+      });
+    }
     let { status } = await Notifications.getPermissionsAsync();
     if (status === 'undetermined') ({ status } = await Notifications.requestPermissionsAsync());
     if (status !== 'granted') return;
