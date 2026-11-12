@@ -56,16 +56,23 @@
         {
           "photosPermission": "O 16:9 abre suas fotos e vídeos para você publicar trabalhos e escolher a foto de perfil.",
           "cameraPermission": "O 16:9 usa a câmera para você gravar vídeos e publicar.",
-          "microphonePermission": "O 16:9 usa o microfone para gravar o som dos seus vídeos."
+          "microphonePermission": "O 16:9 usa o microfone para gravar o som dos seus vídeos e as mensagens de voz."
         }
       ],
       [
         "expo-camera",
         {
           "cameraPermission": "O 16:9 usa a câmera para você gravar vídeos e publicar.",
-          "microphonePermission": "O 16:9 usa o microfone para gravar o som dos seus vídeos.",
+          "microphonePermission": "O 16:9 usa o microfone para gravar o som dos seus vídeos e as mensagens de voz.",
           "recordAudioAndroid": true,
           "barcodeScannerEnabled": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "O 16:9 usa o microfone para gravar o som dos seus vídeos e as mensagens de voz.",
+          "enableBackgroundPlayback": false
         }
       ],
       [

@@ -104,6 +104,7 @@ const TEXTS = {
     someone: 'Alguém',
     photo: 'Enviou uma foto',
     video: 'Enviou um vídeo',
+    audio: 'Enviou uma mensagem de voz',
     shared: 'Compartilhou um trabalho com você',
     reply: 'Responderam seu comentário',
     comment: 'Novo comentário',
@@ -117,6 +118,7 @@ const TEXTS = {
     someone: 'Someone',
     photo: 'Sent a photo',
     video: 'Sent a video',
+    audio: 'Sent a voice message',
     shared: 'Shared a work with you',
     reply: 'New reply to your comment',
     comment: 'New comment',
@@ -130,6 +132,7 @@ const TEXTS = {
     someone: 'Alguien',
     photo: 'Envió una foto',
     video: 'Envió un video',
+    audio: 'Envió un mensaje de voz',
     shared: 'Compartió un trabajo contigo',
     reply: 'Respondieron a tu comentario',
     comment: 'Nuevo comentario',
@@ -143,6 +146,7 @@ const TEXTS = {
     someone: 'Quelqu’un',
     photo: 'A envoyé une photo',
     video: 'A envoyé une vidéo',
+    audio: 'A envoyé un message vocal',
     shared: 'A partagé un travail avec vous',
     reply: 'Nouvelle réponse à votre commentaire',
     comment: 'Nouveau commentaire',
@@ -156,6 +160,7 @@ const TEXTS = {
     someone: 'Qualcuno',
     photo: 'Ha inviato una foto',
     video: 'Ha inviato un video',
+    audio: 'Ha inviato un messaggio vocale',
     shared: 'Ha condiviso un lavoro con te',
     reply: 'Nuova risposta al tuo commento',
     comment: 'Nuovo commento',
@@ -169,6 +174,7 @@ const TEXTS = {
     someone: 'Jemand',
     photo: 'Hat ein Foto gesendet',
     video: 'Hat ein Video gesendet',
+    audio: 'Hat eine Sprachnachricht gesendet',
     shared: 'Hat eine Arbeit mit dir geteilt',
     reply: 'Neue Antwort auf deinen Kommentar',
     comment: 'Neuer Kommentar',
@@ -231,7 +237,9 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
             ? texts.photo
             : message.kind === 'video'
               ? texts.video
-              : texts.shared,
+              : message.kind === 'audio'
+                ? texts.audio
+                : texts.shared,
       }),
     };
   }

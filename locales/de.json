@@ -1,7 +1,7 @@
 {
   "ios": {
     "NSCameraUsageDescription": "16:9 verwendet die Kamera, damit du Videos aufnehmen und posten kannst.",
-    "NSMicrophoneUsageDescription": "16:9 verwendet das Mikrofon, um den Ton deiner Videos aufzunehmen.",
+    "NSMicrophoneUsageDescription": "16:9 verwendet das Mikrofon, um den Ton deiner Videos und deine Sprachnachrichten aufzunehmen.",
     "NSPhotoLibraryUsageDescription": "16:9 öffnet deine Fotos und Videos, damit du Arbeiten posten und dein Profilbild auswählen kannst."
   }
 }

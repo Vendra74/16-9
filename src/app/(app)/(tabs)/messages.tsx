@@ -16,9 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
 import { Button, FormMessage } from '@/components/form';
+import { VoiceBubble, VoiceRecorder } from '@/components/voice';
 import { MediaThumb, MediaViewer, pickMedia } from '@/components/message-media';
 import { PeoplePicker } from '@/components/people-picker';
-import { MoreIcon, PublishIcon, SendIcon } from '@/components/rail-icons';
+import { MicIcon, MoreIcon, PublishIcon, SendIcon } from '@/components/rail-icons';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { useInbox } from '@/lib/inbox';
 import {
@@ -32,6 +33,7 @@ import {
   otherPerson,
   previewText,
   sendMedia,
+  sendVoice,
   sendMessage,
   startConversation,
   unblockUser,
@@ -164,6 +166,10 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   /** Andamento do envio de uma foto ou vídeo; `null` quando não há envio. */
   const [step, setStep] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Message | null>(null);
+  /** Gravando uma mensagem de voz: a barra de gravação toma o lugar do campo de texto. */
+  const [recording, setRecording] = useState(false);
+  /** A mensagem de voz que está tocando; uma de cada vez. */
+  const [playing, setPlaying] = useState<string | null>(null);
   const processing = messages?.some((m) => m.status === 'processing') ?? false;
 
   const read = useCallback(() => {
@@ -265,6 +271,20 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
     }
   }
 
+  async function sendRecording(uri: string, seconds: number) {
+    setRecording(false);
+    setError(null);
+    setStep(t('Enviando o áudio…'));
+    try {
+      const sent = await sendVoice(conversationId, me, uri, seconds);
+      setMessages((list) => (list && !list.some((m) => m.id === sent.id) ? [sent, ...list] : list));
+    } catch {
+      setError(t('Não foi possível enviar. Confira a internet e tente de novo.'));
+    } finally {
+      setStep(null);
+    }
+  }
+
   async function send() {
     const body = text.trim();
     if (!body || sending) return;
@@ -317,6 +337,8 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
           <Bubble
             message={item}
             mine={item.sender_id === me}
+            playing={playing === item.id}
+            onPlay={setPlaying}
             onOpen={() => setViewing(item)}
             onDelete={() => confirmDelete(item)}
           />
@@ -334,6 +356,8 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
           <Text style={styles.blocked}>{t('Você bloqueou {name}. A conversa está fechada.', { name })}</Text>
           {person ? <Button variant="ghost" title={t('Desbloquear')} onPress={() => unblock(person.id)} /> : null}
         </View>
+      ) : recording ? (
+        <VoiceRecorder onSend={sendRecording} onCancel={() => setRecording(false)} />
       ) : (
         <View style={styles.inputRow}>
           <Pressable
@@ -356,13 +380,28 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
             keyboardAppearance="dark"
             selectionColor={Colors.silver}
           />
-          <Pressable
-            onPress={send}
-            disabled={!text.trim() || sending}
-            accessibilityLabel={t('Enviar')}
-            style={[styles.sendButton, (!text.trim() || sending) && styles.dimmed]}>
-            <SendIcon color={Colors.background} size={20} />
-          </Pressable>
+          {text.trim() ? (
+            <Pressable
+              onPress={send}
+              disabled={sending}
+              accessibilityLabel={t('Enviar')}
+              style={[styles.sendButton, sending && styles.dimmed]}>
+              <SendIcon color={Colors.background} size={20} />
+            </Pressable>
+          ) : (
+            // Sem texto, o botão vira microfone: tocar começa a gravar.
+            <Pressable
+              onPress={() => {
+                setPlaying(null);
+                setRecording(true);
+              }}
+              disabled={step !== null}
+              accessibilityRole="button"
+              accessibilityLabel={t('Gravar mensagem de voz')}
+              style={[styles.sendButton, step !== null && styles.dimmed]}>
+              <MicIcon color={Colors.background} size={20} />
+            </Pressable>
+          )}
         </View>
       )}
     </KeyboardAvoidingView>
@@ -372,11 +411,15 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
 function Bubble({
   message,
   mine,
+  playing,
+  onPlay,
   onOpen,
   onDelete,
 }: {
   message: Message;
   mine: boolean;
+  playing: boolean;
+  onPlay: (id: string | null) => void;
   onOpen: () => void;
   onDelete: () => void;
 }) {
@@ -401,6 +444,7 @@ function Bubble({
           )
         ) : null}
         {message.image_path ? <MediaThumb message={message} onOpen={onOpen} /> : null}
+        {message.kind === 'audio' ? <VoiceBubble message={message} mine={mine} active={playing} onPlay={onPlay} /> : null}
         {message.body ? <Text style={[styles.bubbleText, mine && styles.textMine]}>{message.body}</Text> : null}
         <Text style={[styles.bubbleTime, mine && styles.timeMine]}>{timeLabel(message.created_at)}</Text>
       </Pressable>

@@ -1,4 +1,4 @@
-import { cropAndResize, uploadJpeg } from '@/lib/images';
+import { cropAndResize, uploadJpeg, uploadVoice } from '@/lib/images';
 import { notify } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 import { makePoster, requestUpload, uploadVideo } from '@/lib/video';
@@ -38,7 +38,7 @@ export type Message = {
   body: string;
   post_id: string | null;
   created_at: string;
-  kind: 'text' | 'photo' | 'video';
+  kind: 'text' | 'photo' | 'video' | 'audio';
   /** A foto, ou a capa do vídeo, no bucket privado "messages". */
   image_path: string | null;
   image_width: number | null;
@@ -46,7 +46,10 @@ export type Message = {
   /** Vídeos nascem "processing" e ficam "ready" quando o servidor termina. */
   status: 'processing' | 'ready' | 'failed';
   video_url: string | null;
+  /** Segundos do vídeo ou da mensagem de voz. */
   duration: number | null;
+  /** A mensagem de voz, no bucket privado "messages". Ausente em bancos ainda sem a coluna. */
+  audio_path?: string | null;
   post?: SharedPost | null;
 };
 
@@ -54,8 +57,9 @@ const PROFILE = 'id, username, display_name, avatar_url';
 const CONVERSATION =
   `id, user_a, user_b, last_message_at, last_message, last_sender, a_read_at, b_read_at, ` +
   `a:profiles!conversations_user_a_fkey(${PROFILE}), b:profiles!conversations_user_b_fkey(${PROFILE})`;
+// `*` de propósito: colunas novas (como audio_path) não quebram a leitura num banco que ainda não as tem.
 const MESSAGE =
-  'id, conversation_id, sender_id, body, post_id, created_at, kind, image_path, image_width, image_height, status, video_url, duration, ' +
+  '*, ' +
   'post:posts!messages_post_id_fkey(id, image_path, title, author:profiles!posts_user_id_fkey(username, display_name))';
 
 /** A outra pessoa da conversa. */
@@ -185,8 +189,28 @@ export async function sendMedia(conversationId: string, me: string, media: Media
   return data;
 }
 
+/** Duração máxima de uma mensagem de voz. */
+export const MAX_VOICE_SECONDS = 120;
+
+/** Envia uma mensagem de voz já gravada. O arquivo vai para a pasta da conversa. */
+export async function sendVoice(conversationId: string, me: string, uri: string, seconds: number) {
+  const audio_path = await uploadVoice(`${conversationId}/${me}`, uri);
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({ conversation_id: conversationId, kind: 'audio', audio_path, duration: seconds })
+    .select(MESSAGE)
+    .single()
+    .overrideTypes<Message, { merge: false }>();
+  if (error) {
+    await supabase.storage.from('messages').remove([audio_path]);
+    throw error;
+  }
+  notify({ kind: 'message', id: data.id });
+  return data;
+}
+
 /** Apaga uma mensagem sua, para as duas pessoas. */
-export async function deleteMessage(message: Pick<Message, 'id' | 'kind' | 'image_path'>) {
+export async function deleteMessage(message: Pick<Message, 'id' | 'kind' | 'image_path' | 'audio_path'>) {
   // O vídeo sai do Mux primeiro; se falhar, a mensagem continua e dá para tentar de novo.
   if (message.kind === 'video') {
     const { error } = await supabase.functions.invoke('video', { body: { action: 'delete', message_id: message.id } });
@@ -194,8 +218,9 @@ export async function deleteMessage(message: Pick<Message, 'id' | 'kind' | 'imag
   }
   const { error } = await supabase.from('messages').delete().eq('id', message.id);
   if (error) throw error;
-  // A imagem sai depois; se falhar, só fica um arquivo órfão no Storage.
-  if (message.image_path) await supabase.storage.from('messages').remove([message.image_path]);
+  // Os arquivos saem depois; se falhar, só fica um arquivo órfão no Storage.
+  const files = [message.image_path, message.audio_path].filter((path): path is string => Boolean(path));
+  if (files.length) await supabase.storage.from('messages').remove(files);
 }
 
 /** As pessoas que você bloqueou, da mais recente à mais antiga. */
@@ -264,6 +289,7 @@ export async function report(target: { userId?: string; postId?: string; message
 const PREVIEWS: Record<string, () => string> = {
   Foto: () => t('Foto'),
   Vídeo: () => t('Vídeo'),
+  Áudio: () => t('Áudio'),
   'Compartilhou um trabalho': () => t('Compartilhou um trabalho'),
 };
 
