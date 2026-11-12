@@ -3,25 +3,63 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Início · 16:9</title>
-<meta name="description" content="16:9, a rede social de foto e vídeo na horizontal.">
+<title>16:9 · A frame for everyone</title>
+<meta name="description" content="16:9, a rede social de foto e vídeo na horizontal. Em breve.">
 <link rel="icon" href="logo.png">
-<link rel="stylesheet" href="style.css">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: #000; }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #f2f2f2; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px 16px;
+  }
+  .brand { display: flex; align-items: center; gap: clamp(14px, 3vw, 32px); }
+  .brand img { width: clamp(64px, 14vw, 150px); height: auto; animation: spin 14s linear infinite; }
+  .name {
+    font-size: clamp(64px, 16vw, 176px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+    background: linear-gradient(180deg, #ffffff 0%, #d8d8d8 55%, #9a9da3 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .slogan {
+    margin-top: clamp(14px, 2.5vw, 26px); color: #9a9da3;
+    font-size: clamp(11px, 1.9vw, 20px); letter-spacing: 0.45em; text-transform: uppercase; text-align: center;
+    padding-left: 0.45em;
+  }
+  .teaser { margin: clamp(40px, 7vh, 72px) auto 0; max-width: 640px; text-align: center; color: #d8d8d8;
+    font-size: clamp(16px, 2vw, 22px); line-height: 1.5; font-weight: 300; }
+  .soon { margin-top: 14px; text-align: center; color: #9a9da3; font-size: clamp(12px, 1.4vw, 15px); letter-spacing: 0.08em; }
+  /* Entrada como abertura de filme: a marca e o texto aparecem aos poucos. */
+  .reveal { opacity: 0; animation: fade 1.2s ease forwards; }
+  .d1 { animation-delay: .3s; } .d2 { animation-delay: 1s; } .d3 { animation-delay: 1.9s; } .d4 { animation-delay: 2.5s; } .d5 { animation-delay: 3.1s; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .wait { margin-top: clamp(36px, 6vh, 64px); text-align: center; color: #5e6066; font-size: clamp(14px, 1.6vw, 18px); letter-spacing: 0.2em; }
+  .wait span { animation: blink 1.4s infinite both; }
+  .wait span:nth-child(2) { animation-delay: .2s; } .wait span:nth-child(3) { animation-delay: .4s; }
+  footer { position: fixed; bottom: 18px; left: 0; right: 0; text-align: center; font-size: 12px; }
+  footer a { color: #5e6066; text-decoration: none; margin: 0 10px; }
+  footer a:hover { color: #9a9da3; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .brand img, .wait span, .reveal { animation: none; } .reveal { opacity: 1; } }
+</style>
 </head>
 <body>
-<main>
-<header><img src="logo.png" alt=""><div><a href="index.html">16:9</a><br><span>A frame for everyone</span></div></header>
-<h1>A rede social do quadro horizontal</h1>
-<p>O 16:9 é uma rede para videomakers, fotógrafos e cineastas, onde tudo é publicado em 16:9, com o celular deitado.</p>
-<ul>
-<li><a href="termos.html">Termos de uso e regras da comunidade</a></li>
-<li><a href="privacidade.html">Política de privacidade</a></li>
-<li><a href="excluir-conta.html">Como excluir sua conta</a></li>
-</ul>
-<p>Contato: <a href="mailto:contato@sixteennine.com.br">contato@sixteennine.com.br</a></p>
-<footer>
-<a href="termos.html">Termos de uso</a><a href="privacidade.html">Política de privacidade</a><a href="excluir-conta.html">Excluir conta</a>
-</footer>
-</main>
+  <main>
+    <div class="brand reveal d1">
+      <img src="diafragma.png" alt="">
+      <div class="name">16:9</div>
+    </div>
+    <div class="slogan reveal d2">A frame for everyone</div>
+    <p class="teaser reveal d3">Uma rede feita para quem enxerga o mundo na horizontal.<br>Fotógrafos, videomakers e cineastas, num só quadro.</p>
+    <div class="soon reveal d4">Em breve no iPhone e no Android</div>
+  </main>
+  <div class="wait reveal d5">Aguarde<span>.</span><span>.</span><span>.</span></div>
+  <footer class="reveal d5">
+    <a href="termos.html">Termos de uso</a>
+    <a href="privacidade.html">Privacidade</a>
+    <a href="excluir-conta.html">Excluir conta</a>
+  </footer>
 </body>
 </html>
