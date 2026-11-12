@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors, FrameRatio } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
 import { postImageUrl, type FeedPost } from '@/lib/posts';
+import { plural, t } from '@/lib/i18n';
 
 type Props = {
   post: FeedPost;
@@ -16,9 +17,9 @@ type Props = {
 
 /** Um trabalho em miniatura 16:9, para as grades do Explorar e dos perfis. */
 export function WorkTile({ post, width, showAuthor, onPress, onLongPress }: Props) {
-  const name = post.author?.display_name || post.author?.username || 'Alguém';
+  const name = post.author?.display_name || post.author?.username || t('Alguém');
   const title = post.title || post.location || settingsLine(post);
-  const likes = post.like_count === 1 ? '1 curtida' : `${post.like_count} curtidas`;
+  const likes = plural(post.like_count, '{n} curtida', '{n} curtidas');
   return (
     <Pressable
       style={({ pressed }) => [{ width }, styles.tile, pressed && styles.pressed]}
@@ -26,7 +27,7 @@ export function WorkTile({ post, width, showAuthor, onPress, onLongPress }: Prop
       onLongPress={onLongPress}
       delayLongPress={350}
       accessibilityRole="button"
-      accessibilityLabel={`${post.kind === 'video' ? 'Vídeo' : 'Foto'} de ${name}${post.title ? `: ${post.title}` : ''}`}>
+      accessibilityLabel={(post.kind === 'video' ? t('Vídeo de {name}', { name }) : t('Foto de {name}', { name })) + (post.title ? `: ${post.title}` : '')}>
       <View>
         <Image
           source={{ uri: postImageUrl(post) }}
@@ -37,10 +38,10 @@ export function WorkTile({ post, width, showAuthor, onPress, onLongPress }: Prop
         />
         {post.kind === 'video' ? (
           <Text style={styles.tag}>
-            {post.status === 'processing' ? 'Processando…' : post.status === 'failed' ? 'Falhou' : 'Vídeo'}
+            {post.status === 'processing' ? t('Processando…') : post.status === 'failed' ? t('Falhou') : t('Vídeo')}
           </Text>
         ) : post.extra_images?.length ? (
-          <Text style={styles.tag}>{post.extra_images.length + 1} fotos</Text>
+          <Text style={styles.tag}>{t('{n} fotos', { n: post.extra_images.length + 1 })}</Text>
         ) : null}
       </View>
       {showAuthor ? (

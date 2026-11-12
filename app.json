@@ -60,11 +60,32 @@
           "barcodeScannerEnabled": false
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": [
+            "pt",
+            "en",
+            "es",
+            "fr",
+            "it",
+            "de"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "locales": {
+      "pt": "./locales/pt.json",
+      "en": "./locales/en.json",
+      "es": "./locales/es.json",
+      "fr": "./locales/fr.json",
+      "it": "./locales/it.json",
+      "de": "./locales/de.json"
     }
   }
 }

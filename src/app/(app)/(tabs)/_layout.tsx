@@ -5,6 +5,7 @@ import { ExploreIcon, FeedIcon, MessagesIcon, ProfileIcon, PublishIcon } from '@
 import { RailButton, RailSpacer, useRailStyle } from '@/components/side-rail';
 import { Colors } from '@/constants/theme';
 import { useInbox } from '@/lib/inbox';
+import { t } from '@/lib/i18n';
 
 /** As abas: trilho lateral de navegação + a tela atual. */
 export default function TabsLayout() {
@@ -17,20 +18,20 @@ export default function TabsLayout() {
     <Tabs style={styles.root}>
       <TabList style={railStyle}>
         <TabTrigger name="index" href="/" asChild>
-          <RailButton label="Feed" route="/" Icon={FeedIcon} />
+          <RailButton label={t('Feed')} route="/" Icon={FeedIcon} />
         </TabTrigger>
         <TabTrigger name="explore" href="/explore" asChild>
-          <RailButton label="Explorar" route="/explore" Icon={ExploreIcon} />
+          <RailButton label={t('Explorar')} route="/explore" Icon={ExploreIcon} />
         </TabTrigger>
         <RailSpacer />
         <TabTrigger name="publish" href="/publish" asChild>
-          <RailButton label="Publicar" route="/publish" Icon={PublishIcon} />
+          <RailButton label={t('Publicar')} route="/publish" Icon={PublishIcon} />
         </TabTrigger>
         <TabTrigger name="messages" href="/messages" asChild>
-          <RailButton label="Mensagens" route="/messages" Icon={MessagesIcon} badge={unreadCount > 0} />
+          <RailButton label={t('Mensagens')} route="/messages" Icon={MessagesIcon} badge={unreadCount > 0} />
         </TabTrigger>
         <TabTrigger name="profile" href="/profile" asChild>
-          <RailButton label="Perfil" route="/profile" Icon={ProfileIcon} />
+          <RailButton label={t('Perfil')} route="/profile" Icon={ProfileIcon} />
         </TabTrigger>
       </TabList>
       <TabSlot style={styles.content} />

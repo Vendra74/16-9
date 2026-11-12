@@ -32,16 +32,17 @@ import {
 import { askBlock, askReport } from '@/lib/moderation';
 import type { FeedPost } from '@/lib/posts';
 import { useSession } from '@/lib/session';
+import { dateLocale, t } from '@/lib/i18n';
 
 const PANEL_WIDTH = 380;
 
 function timeLabel(iso: string) {
   const minutes = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
-  if (minutes < 1) return 'agora';
+  if (minutes < 1) return t('agora');
   if (minutes < 60) return `${minutes} min`;
   if (minutes < 60 * 24) return `${Math.floor(minutes / 60)} h`;
   if (minutes < 60 * 24 * 7) return `${Math.floor(minutes / (60 * 24))} d`;
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return new Date(iso).toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit' });
 }
 
 type Props = {
@@ -65,7 +66,7 @@ export function CommentsPanel({ post, onClose, onCountChange }: Props) {
       supportedOrientations={['landscape']}
       onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable style={styles.outside} onPress={onClose} accessibilityLabel="Fechar comentários" />
+        <Pressable style={styles.outside} onPress={onClose} accessibilityLabel={t('Fechar comentários')} />
         {post ? <Panel key={post.id} post={post} onClose={onClose} onCountChange={onCountChange} /> : null}
       </View>
     </Modal>
@@ -115,7 +116,7 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
       if (!replyingTo) setTimeout(() => list.current?.scrollToEnd({ animated: true }), 50);
       setReplyingTo(null);
     } catch {
-      setError('Não foi possível comentar. Confira a internet e tente de novo.');
+      setError(t('Não foi possível comentar. Confira a internet e tente de novo.'));
     } finally {
       setSending(false);
     }
@@ -130,7 +131,7 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
       if (replyingTo?.id === comment.id) setReplyingTo(null);
       onCountChange(-Math.max(1, gone));
     } catch {
-      Alert.alert('Não foi possível apagar', 'Confira a internet e tente de novo.');
+      Alert.alert(t('Não foi possível apagar'), t('Confira a internet e tente de novo.'));
     }
   }
 
@@ -165,26 +166,26 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
 
   /** Toque longo: apagar (seu comentário ou no seu post), denunciar ou bloquear. */
   function options(comment: Comment) {
-    const name = comment.author?.display_name || comment.author?.username || 'esta pessoa';
+    const name = comment.author?.display_name || comment.author?.username || t('esta pessoa');
     const mine = comment.user_id === me;
     const canDelete = mine || post.user_id === me;
     const hide = () => setComments((rows) => rows?.filter((c) => c.user_id !== comment.user_id) ?? null);
-    Alert.alert(mine ? 'Seu comentário' : `Comentário de ${name}`, undefined, [
-      ...(canDelete ? [{ text: 'Apagar', style: 'destructive' as const, onPress: () => remove(comment) }] : []),
+    Alert.alert(mine ? t('Seu comentário') : t('Comentário de {name}', { name }), undefined, [
+      ...(canDelete ? [{ text: t('Apagar'), style: 'destructive' as const, onPress: () => remove(comment) }] : []),
       ...(mine
         ? []
         : [
             {
-              text: 'Denunciar',
+              text: t('Denunciar'),
               onPress: () => askReport({ userId: comment.user_id, postId: post.id, commentId: comment.id }),
             },
             {
-              text: `Bloquear ${name}`,
+              text: t('Bloquear {name}', { name }),
               style: 'destructive' as const,
               onPress: () => askBlock(comment.user_id, name, hide),
             },
           ]),
-      { text: 'Cancelar', style: 'cancel' as const },
+      { text: t('Cancelar'), style: 'cancel' as const },
     ]);
   }
 
@@ -195,16 +196,16 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
       style={[styles.panel, { paddingRight: Math.max(insets.right, Spacing.md) }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
-        <Text style={styles.title}>Comentários</Text>
-        <Button variant="ghost" title="Fechar" onPress={onClose} />
+        <Text style={styles.title}>{t('Comentários')}</Text>
+        <Button variant="ghost" title={t('Fechar')} onPress={onClose} />
       </View>
 
       {comments === null ? (
         <View style={styles.center}>
           {failed ? (
             <>
-              <Text style={styles.empty}>Não foi possível carregar os comentários.</Text>
-              <Button variant="ghost" title="Tentar de novo" onPress={() => setAttempt((n) => n + 1)} />
+              <Text style={styles.empty}>{t('Não foi possível carregar os comentários.')}</Text>
+              <Button variant="ghost" title={t('Tentar de novo')} onPress={() => setAttempt((n) => n + 1)} />
             </>
           ) : (
             <ApertureLoader size={32} background={Colors.surface} />
@@ -218,14 +219,14 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
           keyExtractor={(c) => c.id}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={comments.length === 0 ? styles.center : styles.listContent}
-          ListEmptyComponent={<Text style={styles.empty}>Ninguém comentou ainda. Seja a primeira pessoa.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{t('Ninguém comentou ainda. Seja a primeira pessoa.')}</Text>}
           renderItem={({ item }) => {
-            const name = item.author?.display_name || item.author?.username || 'Alguém';
+            const name = item.author?.display_name || item.author?.username || t('Alguém');
             return (
               <Pressable
                 style={({ pressed }) => [styles.row, item.parent_id && styles.reply, pressed && styles.pressed]}
                 onLongPress={() => options(item)}
-                accessibilityHint="Segure para ver as opções">
+                accessibilityHint={t('Segure para ver as opções')}>
                 <Avatar name={name} url={item.author?.avatar_url} size={item.parent_id ? 24 : 30} />
                 <View style={styles.flex}>
                   <Text style={styles.meta}>
@@ -235,7 +236,7 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
                   </Text>
                   <Text style={styles.body}>{item.body}</Text>
                   <Pressable onPress={() => reply(item)} hitSlop={8} accessibilityRole="button" style={styles.replyLink}>
-                    <Text style={styles.replyText}>Responder</Text>
+                    <Text style={styles.replyText}>{t('Responder')}</Text>
                   </Pressable>
                 </View>
                 <ClapperButton
@@ -255,10 +256,10 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
       {replyingTo ? (
         <View style={styles.replying}>
           <Text style={styles.replyingText} numberOfLines={1}>
-            Respondendo a {replyingTo.author?.display_name || replyingTo.author?.username || 'alguém'}
+            {t('Respondendo a {name}', { name: replyingTo.author?.display_name || replyingTo.author?.username || t('alguém') })}
           </Text>
-          <Pressable onPress={() => setReplyingTo(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cancelar a resposta">
-            <Text style={styles.replyingCancel}>Cancelar</Text>
+          <Pressable onPress={() => setReplyingTo(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('Cancelar a resposta')}>
+            <Text style={styles.replyingCancel}>{t('Cancelar')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -266,7 +267,7 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
         <TextInput
           ref={input}
           style={styles.input}
-          placeholder={replyingTo ? 'Escreva uma resposta' : 'Escreva um comentário'}
+          placeholder={replyingTo ? t('Escreva uma resposta') : t('Escreva um comentário')}
           placeholderTextColor={Colors.textMuted}
           value={text}
           onChangeText={setText}
@@ -278,7 +279,7 @@ function Panel({ post, onClose, onCountChange }: Props & { post: FeedPost }) {
         <Pressable
           onPress={send}
           disabled={!canSend}
-          accessibilityLabel="Publicar comentário"
+          accessibilityLabel={t('Publicar comentário')}
           style={[styles.sendButton, !canSend && styles.dimmed]}>
           <SendIcon color={Colors.background} size={20} />
         </Pressable>

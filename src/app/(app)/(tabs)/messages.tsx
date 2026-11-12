@@ -31,6 +31,7 @@ import {
   isUnread,
   markRead,
   otherPerson,
+  previewText,
   sendMedia,
   sendMessage,
   startConversation,
@@ -41,6 +42,7 @@ import {
 import { askModeration } from '@/lib/moderation';
 import { postImageUrl } from '@/lib/posts';
 import { useSession } from '@/lib/session';
+import { dateLocale, t } from '@/lib/i18n';
 
 const LIST_WIDTH = 250;
 
@@ -49,9 +51,9 @@ function timeLabel(iso: string | null) {
   const d = new Date(iso);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
   }
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return d.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit' });
 }
 
 /** Mensagens: conversas à esquerda, a conversa aberta à direita. */
@@ -75,7 +77,7 @@ export default function MessagesScreen() {
       const id = await startConversation(personId);
       open(id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível abrir a conversa.');
+      setError(e instanceof Error ? e.message : t('Não foi possível abrir a conversa.'));
     }
   }
 
@@ -83,8 +85,8 @@ export default function MessagesScreen() {
     <View style={[styles.screen, { paddingRight: insets.right }]}>
       <View style={styles.list}>
         <View style={styles.listHeader}>
-          <Text style={styles.title}>Mensagens</Text>
-          <Button variant="ghost" title="Nova" onPress={() => setPicking(true)} />
+          <Text style={styles.title}>{t('Mensagens')}</Text>
+          <Button variant="ghost" title={t('Nova')} onPress={() => setPicking(true)} />
         </View>
         <FormMessage text={error} />
         {conversations === null ? (
@@ -98,11 +100,11 @@ export default function MessagesScreen() {
             onRefresh={refresh}
             refreshing={false}
             ListEmptyComponent={
-              <Text style={styles.emptySmall}>Nenhuma conversa ainda. Toque em “Nova” ou mande mensagem pelo feed.</Text>
+              <Text style={styles.emptySmall}>{t('Nenhuma conversa ainda. Toque em “Nova” ou mande mensagem pelo feed.')}</Text>
             }
             renderItem={({ item }) => {
               const person = otherPerson(item, me);
-              const name = person?.display_name || person?.username || 'Alguém';
+              const name = person?.display_name || person?.username || t('Alguém');
               const unread = isUnread(item, me);
               return (
                 <Pressable
@@ -117,8 +119,8 @@ export default function MessagesScreen() {
                       <Text style={styles.itemTime}>{timeLabel(item.last_message_at)}</Text>
                     </View>
                     <Text style={[styles.itemPreview, unread && styles.unreadPreview]} numberOfLines={1}>
-                      {item.last_sender === me ? 'Você: ' : ''}
-                      {item.last_message}
+                      {item.last_sender === me ? t('Você: ') : ''}
+                      {previewText(item.last_message)}
                     </Text>
                   </View>
                   {unread ? <View style={styles.dot} /> : null}
@@ -134,9 +136,9 @@ export default function MessagesScreen() {
           <Chat key={selected} conversationId={selected} me={me} />
         ) : (
           <View style={styles.center}>
-            <Text style={styles.emptyTitle}>Converse com quem publica</Text>
+            <Text style={styles.emptyTitle}>{t('Converse com quem publica')}</Text>
             <Text style={styles.emptyText}>
-              Mande mensagem pelo botão de balão num trabalho do feed, ou toque em “Nova” para buscar alguém.
+              {t('Mande mensagem pelo botão de balão num trabalho do feed, ou toque em “Nova” para buscar alguém.')}
             </Text>
           </View>
         )}
@@ -144,7 +146,7 @@ export default function MessagesScreen() {
 
       <PeoplePicker
         visible={picking}
-        title="Nova conversa"
+        title={t('Nova conversa')}
         onPick={(person) => startWith(person.id)}
         onClose={() => setPicking(false)}
       />
@@ -183,7 +185,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
           .then((is) => active && setBlocked(is))
           .catch(() => {});
       })
-      .catch(() => active && setError('Não foi possível carregar a conversa.'));
+      .catch(() => active && setError(t('Não foi possível carregar a conversa.')));
     return () => {
       active = false;
     };
@@ -220,10 +222,10 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
 
   /** Toque longo numa mensagem sua: apagar para as duas pessoas. */
   function confirmDelete(message: Message) {
-    Alert.alert('Apagar esta mensagem?', 'Ela some para você e para a outra pessoa. Não dá para desfazer.', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar esta mensagem?'), t('Ela some para você e para a outra pessoa. Não dá para desfazer.'), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -231,7 +233,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
             setMessages((list) => list?.filter((m) => m.id !== message.id) ?? null);
             refresh();
           } catch {
-            Alert.alert('Não foi possível apagar', 'Confira a internet e tente de novo.');
+            Alert.alert(t('Não foi possível apagar'), t('Confira a internet e tente de novo.'));
           }
         },
       },
@@ -244,7 +246,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       setBlocked(false);
       setError(null);
     } catch {
-      Alert.alert('Não foi possível desbloquear', 'Confira a internet e tente de novo.');
+      Alert.alert(t('Não foi possível desbloquear'), t('Confira a internet e tente de novo.'));
     }
   }
 
@@ -254,11 +256,11 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
     try {
       const media = await pickMedia();
       if (!media) return;
-      setStep('Preparando…');
+      setStep(t('Preparando…'));
       const sent = await sendMedia(conversationId, me, media, setStep);
       setMessages((list) => (list && !list.some((m) => m.id === sent.id) ? [sent, ...list] : list));
     } catch {
-      setError('Não foi possível enviar. Confira a internet e tente de novo.');
+      setError(t('Não foi possível enviar. Confira a internet e tente de novo.'));
     } finally {
       setStep(null);
     }
@@ -274,7 +276,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       setText('');
       setMessages((list) => (list && !list.some((m) => m.id === sent.id) ? [sent, ...list] : list));
     } catch {
-      setError('Não foi possível enviar. Se você bloqueou ou foi bloqueado, a conversa fica fechada.');
+      setError(t('Não foi possível enviar. Se você bloqueou ou foi bloqueado, a conversa fica fechada.'));
     } finally {
       setSending(false);
     }
@@ -285,7 +287,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   }
 
   const person = otherPerson(conversation, me);
-  const name = person?.display_name || person?.username || 'Alguém';
+  const name = person?.display_name || person?.username || t('Alguém');
 
   return (
     <KeyboardAvoidingView style={styles.chatInner} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -298,7 +300,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
         {person ? (
           <Pressable
             hitSlop={10}
-            accessibilityLabel="Denunciar ou bloquear"
+            accessibilityLabel={t('Denunciar ou bloquear')}
             onPress={() => askModeration({ id: person.id, name }, {}, () => setBlocked(true))}>
             <MoreIcon color={Colors.textSecondary} />
           </Pressable>
@@ -321,7 +323,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
           />
         )}
         ListEmptyComponent={
-          <Text style={[styles.emptySmall, styles.flipped]}>Diga oi para {name}.</Text>
+          <Text style={[styles.emptySmall, styles.flipped]}>{t('Diga oi para {name}.', { name })}</Text>
         }
       />
 
@@ -330,8 +332,8 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       <MediaViewer message={viewing} onClose={() => setViewing(null)} />
       {blocked ? (
         <View style={styles.blockedRow}>
-          <Text style={styles.blocked}>Você bloqueou {name}. A conversa está fechada.</Text>
-          {person ? <Button variant="ghost" title="Desbloquear" onPress={() => unblock(person.id)} /> : null}
+          <Text style={styles.blocked}>{t('Você bloqueou {name}. A conversa está fechada.', { name })}</Text>
+          {person ? <Button variant="ghost" title={t('Desbloquear')} onPress={() => unblock(person.id)} /> : null}
         </View>
       ) : (
         <View style={styles.inputRow}>
@@ -340,13 +342,13 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
             disabled={step !== null}
             hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel="Enviar foto ou vídeo"
+            accessibilityLabel={t('Enviar foto ou vídeo')}
             style={[styles.attachButton, step !== null && styles.dimmed]}>
             <PublishIcon color={Colors.textSecondary} size={24} />
           </Pressable>
           <TextInput
             style={styles.input}
-            placeholder="Mensagem"
+            placeholder={t('Mensagem')}
             placeholderTextColor={Colors.textMuted}
             value={text}
             onChangeText={setText}
@@ -358,7 +360,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
           <Pressable
             onPress={send}
             disabled={!text.trim() || sending}
-            accessibilityLabel="Enviar"
+            accessibilityLabel={t('Enviar')}
             style={[styles.sendButton, (!text.trim() || sending) && styles.dimmed]}>
             <SendIcon color={Colors.background} size={20} />
           </Pressable>
@@ -386,17 +388,17 @@ function Bubble({
         style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}
         onLongPress={mine ? onDelete : undefined}
         delayLongPress={350}
-        accessibilityHint={mine ? 'Segure para apagar' : undefined}>
+        accessibilityHint={mine ? t('Segure para apagar') : undefined}>
         {message.post_id ? (
           post ? (
             <View style={styles.shared}>
               <Image source={{ uri: postImageUrl(post) }} style={styles.sharedImage} contentFit="cover" />
               <Text style={[styles.sharedText, mine && styles.textMine]} numberOfLines={1}>
-                {[post.title, post.author && `@${post.author.username}`].filter(Boolean).join(' · ') || 'Trabalho'}
+                {[post.title, post.author && `@${post.author.username}`].filter(Boolean).join(' · ') || t('Trabalho')}
               </Text>
             </View>
           ) : (
-            <Text style={[styles.sharedGone, mine && styles.textMine]}>Trabalho indisponível</Text>
+            <Text style={[styles.sharedGone, mine && styles.textMine]}>{t('Trabalho indisponível')}</Text>
           )
         ) : null}
         {message.image_path ? <MediaThumb message={message} onOpen={onOpen} /> : null}

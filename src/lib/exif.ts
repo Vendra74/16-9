@@ -1,3 +1,4 @@
+import { t } from '@/lib/i18n';
 /**
  * Ficha técnica a partir dos dados EXIF que o seletor de fotos devolve.
  * No iOS os dados vêm agrupados ({Exif}, {TIFF}, {ExifAux}); no Android, num nível só.
@@ -62,8 +63,8 @@ export function gearFromExif(raw: Exif | null | undefined): Gear {
   let lens = text(e.LensModel);
   // O iPhone descreve a lente como "iPhone 15 Pro back triple camera 6.765mm f/1.78".
   if (lens && model && lens.startsWith(model)) lens = lens.slice(model.length).trim();
-  if (/^back\b.*camera/i.test(lens)) lens = 'Câmera traseira';
-  else if (/^front\b.*camera/i.test(lens)) lens = 'Câmera frontal';
+  if (/^back\b.*camera/i.test(lens)) lens = t('Câmera traseira');
+  else if (/^front\b.*camera/i.test(lens)) lens = t('Câmera frontal');
 
   const focal = num(e.FocalLength);
   const focal35 = num(e.FocalLenIn35mmFilm ?? e.FocalLengthIn35mmFilm);

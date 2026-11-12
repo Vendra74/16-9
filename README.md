@@ -45,6 +45,16 @@ O primeiro build pede o login da Apple e cria certificados e o app no App Store 
 
 O identificador do app é `br.com.vendra.sixteennine` (em `app.json`). Troque antes do primeiro build se preferir outro; depois não muda mais.
 
+## Idiomas
+
+O app abre no idioma do aparelho: português, inglês, espanhol, francês, italiano ou alemão. Qualquer outro idioma cai no inglês. Não há seletor dentro do app.
+
+- Os textos nascem em português nas telas, sempre dentro de `t('…')` (ou `plural(n, '…', '…')` quando há contagem), de `src/lib/i18n.ts`.
+- Cada idioma é um arquivo em `src/locales/`, que leva o texto em português à tradução.
+- `npm run i18n` acusa texto sem tradução, tradução sobrando e `{valores}` que não batem. Rode sempre que mexer em textos.
+- As frases de permissão do iPhone (câmera, microfone, fotos) ficam em `locales/*.json`, e as notificações em `supabase/functions/notify`.
+- Idioma novo: um arquivo em `src/locales/`, um em `locales/`, as entradas em `src/lib/i18n.ts`, `app.json` e na função `notify`.
+
 ## Verificações
 
 ```bash

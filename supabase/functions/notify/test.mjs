@@ -106,6 +106,28 @@ reset(); tables.posts[0].title = '';
 await call('Bearer a', { kind: 'like', post_id: POST });
 assert.equal(sentBatches[0][0].body, 'Andre curtiu seu trabalho');
 
+// cada aparelho recebe no próprio idioma; idioma desconhecido ou ausente cai no português
+reset(); tables.push_tokens = [
+  { token: 'ExponentPushToken[b1]', user_id: B, language: 'en' },
+  { token: 'ExponentPushToken[b2]', user_id: B, language: 'de' },
+  { token: 'ExponentPushToken[b3]', user_id: B, language: 'xx' },
+  { token: 'ExponentPushToken[b4]', user_id: B },
+];
+await call('Bearer a', { kind: 'like', post_id: POST });
+assert.deepEqual(sentBatches[0].map((m) => [m.title, m.body]), [
+  ['New like', 'Andre liked "Ensaio na praia"'],
+  ['Neues Like', 'Andre gefällt "Ensaio na praia"'],
+  ['Nova curtida', 'Andre curtiu "Ensaio na praia"'],
+  ['Nova curtida', 'Andre curtiu "Ensaio na praia"'],
+]);
+reset(); tables.push_tokens = [{ token: 'ExponentPushToken[b1]', user_id: B, language: 'es' }];
+tables.messages[0].body = ''; tables.messages[0].kind = 'photo'; tables.profiles[0] = { id: A, display_name: '', username: '' };
+await call('Bearer a', { kind: 'message', id: MSG });
+assert.deepEqual([sentBatches[0][0].title, sentBatches[0][0].body], ['Alguien', 'Envió una foto']);
+tables.comments[0].parent_id = null;
+await call('Bearer a', { kind: 'comment', id: COMMENT });
+assert.deepEqual([sentBatches[1][0].title, sentBatches[1][0].body], ['Nuevo comentario', 'Alguien: Que luz!']);
+
 // curtir o próprio post não notifica
 reset(); tables.posts[0].user_id = A;
 assert.deepEqual((await call('Bearer a', { kind: 'like', post_id: POST })).body, { skipped: 'self' });

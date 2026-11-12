@@ -2,6 +2,7 @@ import { cropAndResize, uploadJpeg } from '@/lib/images';
 import { notify } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 import { makePoster, requestUpload, uploadVideo } from '@/lib/video';
+import { t } from '@/lib/i18n';
 
 export type MiniProfile = {
   id: string;
@@ -95,7 +96,7 @@ export async function fetchConversation(id: string) {
 export async function startConversation(otherUserId: string) {
   const { data, error } = await supabase.rpc('start_conversation', { other: otherUserId });
   if (error) {
-    if (error.message.includes('blocked')) throw new Error('Não é possível conversar com essa pessoa.');
+    if (error.message.includes('blocked')) throw new Error(t('Não é possível conversar com essa pessoa.'));
     throw error;
   }
   return data as string;
@@ -148,11 +149,11 @@ export type Media = { kind: 'photo' | 'video'; uri: string; width: number; heigh
  */
 export async function sendMedia(conversationId: string, me: string, media: Media, onStep: (text: string) => void) {
   const video = media.kind === 'video';
-  onStep(video ? 'Preparando o vídeo…' : 'Preparando a foto…');
+  onStep(video ? t('Preparando o vídeo…') : t('Preparando a foto…'));
   const image = video
     ? await makePoster(media.uri, MAX_PHOTO_WIDTH)
     : await cropAndResize(media.uri, { originX: 0, originY: 0, width: media.width, height: media.height }, MAX_PHOTO_WIDTH);
-  onStep('Enviando…');
+  onStep(t('Enviando…'));
   const image_path = await uploadJpeg('messages', `${conversationId}/${me}`, image.uri);
   const upload = video ? await requestUpload() : null;
   const { data, error } = await supabase
@@ -171,8 +172,8 @@ export async function sendMedia(conversationId: string, me: string, media: Media
   if (error) throw error;
   if (upload) {
     try {
-      onStep('Enviando o vídeo… 0%');
-      await uploadVideo(upload.url, media.uri, (f) => onStep(`Enviando o vídeo… ${Math.round(f * 100)}%`));
+      onStep(t('Enviando o vídeo… {percent}%', { percent: 0 }));
+      await uploadVideo(upload.url, media.uri, (f) => onStep(t('Enviando o vídeo… {percent}%', { percent: Math.round(f * 100) })));
     } catch (e) {
       // Sem o arquivo, a mensagem ficaria "processando" para sempre: desfaz.
       await supabase.from('messages').delete().eq('id', data.id);
@@ -257,4 +258,16 @@ export async function report(target: { userId?: string; postId?: string; message
     reason,
   });
   if (error) throw error;
+}
+
+/** Resumos que o servidor escreve em português na lista de conversas (mensagem sem texto). */
+const PREVIEWS: Record<string, string> = {
+  Foto: t('Foto'),
+  Vídeo: t('Vídeo'),
+  'Compartilhou um trabalho': t('Compartilhou um trabalho'),
+};
+
+/** A última mensagem da conversa, com os resumos do servidor no idioma do aparelho. */
+export function previewText(lastMessage: string) {
+  return PREVIEWS[lastMessage] ?? lastMessage;
 }

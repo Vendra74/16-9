@@ -26,6 +26,7 @@ import { unregisterFromPush } from '@/lib/push';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { openViewer } from '@/lib/viewer';
+import { plural, t } from '@/lib/i18n';
 
 type Panel = 'works' | 'edit' | 'feedback' | 'blocked';
 
@@ -45,7 +46,7 @@ export default function ProfileScreen() {
     let active = true;
     fetchProfile(userId)
       .then((data) => active && setProfile(data))
-      .catch(() => active && setLoadError('Não foi possível carregar seu perfil.'));
+      .catch(() => active && setLoadError(t('Não foi possível carregar seu perfil.')));
     return () => {
       active = false;
     };
@@ -78,7 +79,7 @@ export default function ProfileScreen() {
       await updateProfile(profile.id, { avatar_url });
       setProfile({ ...profile, avatar_url });
     } catch {
-      setAvatarError('Não foi possível trocar a foto.');
+      setAvatarError(t('Não foi possível trocar a foto.'));
     } finally {
       setAvatarBusy(false);
     }
@@ -95,7 +96,7 @@ export default function ProfileScreen() {
         {loadError ? (
           <>
             <FormMessage text={loadError} />
-            <Button variant="ghost" title="Tentar de novo" onPress={retry} />
+            <Button variant="ghost" title={t('Tentar de novo')} onPress={retry} />
           </>
         ) : (
           <ApertureLoader />
@@ -109,7 +110,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.screen, { paddingRight: insets.right }]}>
       <ScrollView style={styles.side} contentContainerStyle={[styles.sideContent, { paddingTop: Math.max(insets.top, Spacing.lg) }]}>
-        <Pressable onPress={changeAvatar} disabled={avatarBusy} accessibilityLabel="Trocar foto de perfil">
+        <Pressable onPress={changeAvatar} disabled={avatarBusy} accessibilityLabel={t('Trocar foto de perfil')}>
           <Avatar name={profile.display_name || profile.username} url={profile.avatar_url} size={72} />
           {avatarBusy ? (
             <View style={styles.avatarBusy}>
@@ -118,7 +119,7 @@ export default function ProfileScreen() {
           ) : null}
         </Pressable>
         <Pressable onPress={changeAvatar} disabled={avatarBusy} hitSlop={6}>
-          <Text style={styles.changePhoto}>{profile.avatar_url ? 'Trocar foto' : 'Adicionar foto'}</Text>
+          <Text style={styles.changePhoto}>{profile.avatar_url ? t('Trocar foto') : t('Adicionar foto')}</Text>
         </Pressable>
         <FormMessage text={avatarError} />
         <Text style={styles.name}>{profile.display_name || profile.username}</Text>
@@ -129,20 +130,20 @@ export default function ProfileScreen() {
         <View style={styles.actions}>
           <Button
             variant={panel === 'edit' ? 'primary' : 'ghost'}
-            title="Editar perfil"
+            title={t('Editar perfil')}
             onPress={() => setPanel(panel === 'edit' ? 'works' : 'edit')}
           />
           <Button
             variant={panel === 'feedback' ? 'primary' : 'ghost'}
-            title="Enviar feedback"
+            title={t('Enviar feedback')}
             onPress={() => setPanel(panel === 'feedback' ? 'works' : 'feedback')}
           />
           <Button
             variant={panel === 'blocked' ? 'primary' : 'ghost'}
-            title="Bloqueados"
+            title={t('Bloqueados')}
             onPress={() => setPanel(panel === 'blocked' ? 'works' : 'blocked')}
           />
-          <Button variant="ghost" title="Sair" onPress={async () => {
+          <Button variant="ghost" title={t('Sair')} onPress={async () => {
               await unregisterFromPush();
               await supabase.auth.signOut();
             }} />
@@ -193,17 +194,17 @@ function MyWorks({ userId }: { userId: string }) {
   useFocusEffect(load);
 
   function confirmDelete(post: FeedPost) {
-    Alert.alert('Apagar este trabalho?', 'Ele sai do feed e do seu perfil. Não dá para desfazer.', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar este trabalho?'), t('Ele sai do feed e do seu perfil. Não dá para desfazer.'), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deletePost(post);
             setPosts((list) => list?.filter((p) => p.id !== post.id) ?? null);
           } catch {
-            Alert.alert('Não foi possível apagar', 'Confira a internet e tente de novo.');
+            Alert.alert(t('Não foi possível apagar'), t('Confira a internet e tente de novo.'));
           }
         },
       },
@@ -213,7 +214,7 @@ function MyWorks({ userId }: { userId: string }) {
   if (posts === null) {
     return (
       <View style={styles.empty}>
-        {error ? <FormMessage text="Não foi possível carregar seus trabalhos." /> : <ApertureLoader />}
+        {error ? <FormMessage text={t('Não foi possível carregar seus trabalhos.')} /> : <ApertureLoader />}
       </View>
     );
   }
@@ -221,8 +222,8 @@ function MyWorks({ userId }: { userId: string }) {
   if (posts.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>Seus trabalhos em 16:9</Text>
-        <Text style={styles.emptyText}>O que você publicar aparece aqui, formando seu portfólio.</Text>
+        <Text style={styles.emptyTitle}>{t('Seus trabalhos em 16:9')}</Text>
+        <Text style={styles.emptyText}>{t('O que você publicar aparece aqui, formando seu portfólio.')}</Text>
       </View>
     );
   }
@@ -230,7 +231,7 @@ function MyWorks({ userId }: { userId: string }) {
   return (
     <View style={styles.grid}>
       <Text style={styles.gridTitle}>
-        {posts.length} {posts.length === 1 ? 'trabalho' : 'trabalhos'}
+        {plural(posts.length, '{n} trabalho', '{n} trabalhos')}
       </Text>
       <View style={styles.gridItems}>
         {posts.map((post) => (
@@ -243,10 +244,10 @@ function MyWorks({ userId }: { userId: string }) {
             <Image source={{ uri: postImageUrl(post) }} style={styles.tileImage} contentFit="cover" transition={200} />
             {post.kind === 'video' ? (
               <Text style={styles.tileTag}>
-                {post.status === 'processing' ? 'Processando…' : post.status === 'failed' ? 'Falhou' : 'Vídeo'}
+                {post.status === 'processing' ? t('Processando…') : post.status === 'failed' ? t('Falhou') : t('Vídeo')}
               </Text>
             ) : post.extra_images?.length ? (
-              <Text style={styles.tileTag}>{post.extra_images.length + 1} fotos</Text>
+              <Text style={styles.tileTag}>{t('{n} fotos', { n: post.extra_images.length + 1 })}</Text>
             ) : null}
             <Text style={styles.tileTitle} numberOfLines={1}>
               {post.title || post.location || settingsLine(post) || ' '}
@@ -254,7 +255,7 @@ function MyWorks({ userId }: { userId: string }) {
           </Pressable>
         ))}
       </View>
-      <Text style={styles.hint}>Toque para abrir. Segure um trabalho para apagar.</Text>
+      <Text style={styles.hint}>{t('Toque para abrir. Segure um trabalho para apagar.')}</Text>
     </View>
   );
 }
@@ -279,25 +280,25 @@ function BlockedList() {
       await unblockUser(person.id);
       setPeople((list) => list?.filter((p) => p.id !== person.id) ?? null);
     } catch {
-      Alert.alert('Não foi possível desbloquear', 'Confira a internet e tente de novo.');
+      Alert.alert(t('Não foi possível desbloquear'), t('Confira a internet e tente de novo.'));
     }
   }
 
   return (
     <View style={styles.form}>
-      <Text style={styles.formTitle}>Bloqueados</Text>
+      <Text style={styles.formTitle}>{t('Bloqueados')}</Text>
       {people === null ? (
         error ? (
-          <FormMessage text="Não foi possível carregar a lista." />
+          <FormMessage text={t('Não foi possível carregar a lista.')} />
         ) : (
           <ApertureLoader size={32} />
         )
       ) : people.length === 0 ? (
-        <Text style={styles.emptyText}>Você não bloqueou ninguém.</Text>
+        <Text style={styles.emptyText}>{t('Você não bloqueou ninguém.')}</Text>
       ) : (
         <>
           <Text style={styles.emptyText}>
-            Ao desbloquear, você volta a ver os trabalhos da pessoa e os dois podem trocar mensagens de novo.
+            {t('Ao desbloquear, você volta a ver os trabalhos da pessoa e os dois podem trocar mensagens de novo.')}
           </Text>
           {people.map((person) => {
             const name = person.display_name || person.username;
@@ -308,7 +309,7 @@ function BlockedList() {
                   <Text style={styles.blockedName}>{name}</Text>
                   <Text style={styles.handle}>@{person.username}</Text>
                 </View>
-                <Button variant="ghost" title="Desbloquear" onPress={() => unblock(person)} />
+                <Button variant="ghost" title={t('Desbloquear')} onPress={() => unblock(person)} />
               </View>
             );
           })}
@@ -334,14 +335,14 @@ function EditProfile({ profile, onSaved }: { profile: Profile; onSaved: (profile
       bio: form.bio.trim(),
     };
     if (!USERNAME_PATTERN.test(changes.username)) {
-      return setError('O @ precisa ter de 3 a 24 letras, números, ponto ou _.');
+      return setError(t('O @ precisa ter de 3 a 24 letras, números, ponto ou _.'));
     }
     setBusy(true);
     try {
       await updateProfile(profile.id, changes);
       onSaved({ ...profile, ...changes });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível salvar.');
+      setError(e instanceof Error ? e.message : t('Não foi possível salvar.'));
     } finally {
       setBusy(false);
     }
@@ -349,14 +350,14 @@ function EditProfile({ profile, onSaved }: { profile: Profile; onSaved: (profile
 
   return (
     <View style={styles.form}>
-      <Text style={styles.formTitle}>Editar perfil</Text>
+      <Text style={styles.formTitle}>{t('Editar perfil')}</Text>
       <View style={styles.row}>
         <View style={styles.col}>
-          <Field label="Nome" value={form.display_name} onChangeText={set('display_name')} maxLength={60} />
+          <Field label={t('Nome')} value={form.display_name} onChangeText={set('display_name')} maxLength={60} />
         </View>
         <View style={styles.col}>
           <Field
-            label="Usuário"
+            label={t('Usuário')}
             value={form.username}
             onChangeText={(t) => set('username')(normalizeUsername(t))}
             autoCapitalize="none"
@@ -368,27 +369,27 @@ function EditProfile({ profile, onSaved }: { profile: Profile; onSaved: (profile
       <View style={styles.row}>
         <View style={styles.col}>
           <Field
-            label="Especialidade"
-            placeholder="Fotógrafo, diretor, colorista…"
+            label={t('Especialidade')}
+            placeholder={t('Fotógrafo, diretor, colorista…')}
             value={form.specialty}
             onChangeText={set('specialty')}
             maxLength={60}
           />
         </View>
         <View style={styles.col}>
-          <Field label="Cidade" placeholder="São Paulo, SP" value={form.city} onChangeText={set('city')} maxLength={60} />
+          <Field label={t('Cidade')} placeholder={t('São Paulo, SP')} value={form.city} onChangeText={set('city')} maxLength={60} />
         </View>
       </View>
       <Field
-        label="Bio"
-        placeholder="O que você filma, fotografa, edita…"
+        label={t('Bio')}
+        placeholder={t('O que você filma, fotografa, edita…')}
         value={form.bio}
         onChangeText={set('bio')}
         multiline
         maxLength={300}
       />
       <FormMessage text={error} />
-      <Button title="Salvar" onPress={save} loading={busy} />
+      <Button title={t('Salvar')} onPress={save} loading={busy} />
     </View>
   );
 }
@@ -400,7 +401,7 @@ function FeedbackForm({ onSent }: { onSent: () => void }) {
   const [sent, setSent] = useState(false);
 
   async function send() {
-    if (!message.trim()) return setError('Escreva o que achou antes de enviar.');
+    if (!message.trim()) return setError(t('Escreva o que achou antes de enviar.'));
     setError(null);
     setBusy(true);
     try {
@@ -410,7 +411,7 @@ function FeedbackForm({ onSent }: { onSent: () => void }) {
       setMessage('');
       setTimeout(onSent, 1500);
     } catch {
-      setError('Não foi possível enviar. Confira a internet e tente de novo.');
+      setError(t('Não foi possível enviar. Confira a internet e tente de novo.'));
     } finally {
       setBusy(false);
     }
@@ -418,14 +419,14 @@ function FeedbackForm({ onSent }: { onSent: () => void }) {
 
   return (
     <View style={styles.form}>
-      <Text style={styles.formTitle}>Enviar feedback</Text>
+      <Text style={styles.formTitle}>{t('Enviar feedback')}</Text>
       <Text style={styles.emptyText}>
-        O que funcionou, o que travou, o que faltou. Vale tudo: a gente lê cada mensagem.
+        {t('O que funcionou, o que travou, o que faltou. Vale tudo: a gente lê cada mensagem.')}
       </Text>
-      <Field label="Mensagem" value={message} onChangeText={setMessage} multiline maxLength={4000} />
+      <Field label={t('Mensagem')} value={message} onChangeText={setMessage} multiline maxLength={4000} />
       <FormMessage text={error} />
-      <FormMessage text={sent ? 'Recebido. Obrigado!' : null} tone="info" />
-      <Button title="Enviar" onPress={send} loading={busy} />
+      <FormMessage text={sent ? t('Recebido. Obrigado!') : null} tone="info" />
+      <Button title={t('Enviar')} onPress={send} loading={busy} />
     </View>
   );
 }
