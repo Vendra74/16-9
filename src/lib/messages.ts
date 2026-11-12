@@ -261,13 +261,13 @@ export async function report(target: { userId?: string; postId?: string; message
 }
 
 /** Resumos que o servidor escreve em português na lista de conversas (mensagem sem texto). */
-const PREVIEWS: Record<string, string> = {
-  Foto: t('Foto'),
-  Vídeo: t('Vídeo'),
-  'Compartilhou um trabalho': t('Compartilhou um trabalho'),
+const PREVIEWS: Record<string, () => string> = {
+  Foto: () => t('Foto'),
+  Vídeo: () => t('Vídeo'),
+  'Compartilhou um trabalho': () => t('Compartilhou um trabalho'),
 };
 
-/** A última mensagem da conversa, com os resumos do servidor no idioma do aparelho. */
+/** A última mensagem da conversa, com os resumos do servidor no idioma do app. */
 export function previewText(lastMessage: string) {
-  return PREVIEWS[lastMessage] ?? lastMessage;
+  return PREVIEWS[lastMessage]?.() ?? lastMessage;
 }

@@ -264,4 +264,7 @@ export const it: Record<string, string> = {
   'Não foi possível bloquear': 'Impossibile bloccare',
   'Esse @ já está em uso.': 'Questa @ è già in uso.',
   'Avisos': 'Avvisi',
+  'Idioma': 'Lingua',
+  'Automático (idioma do aparelho)': 'Automatico (lingua del dispositivo)',
+  'Escolha o idioma do 16:9. A troca vale na hora.': 'Scegli la lingua di 16:9. Il cambio è immediato.',
 };

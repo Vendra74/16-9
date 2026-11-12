@@ -264,4 +264,7 @@ export const fr: Record<string, string> = {
   'Não foi possível bloquear': 'Blocage impossible',
   'Esse @ já está em uso.': 'Ce @ est déjà utilisé.',
   'Avisos': 'Alertes',
+  'Idioma': 'Langue',
+  'Automático (idioma do aparelho)': 'Automatique (langue de l’appareil)',
+  'Escolha o idioma do 16:9. A troca vale na hora.': 'Choisissez la langue de 16:9. Le changement est immédiat.',
 };

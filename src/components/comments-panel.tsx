@@ -41,7 +41,7 @@ function timeLabel(iso: string) {
   if (minutes < 60) return `${minutes} min`;
   if (minutes < 60 * 24) return `${Math.floor(minutes / 60)} h`;
   if (minutes < 60 * 24 * 7) return `${Math.floor(minutes / (60 * 24))} d`;
-  return new Date(iso).toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit' });
+  return new Date(iso).toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' });
 }
 
 type Props = {

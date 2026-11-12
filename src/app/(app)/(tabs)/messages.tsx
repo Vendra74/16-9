@@ -50,9 +50,9 @@ function timeLabel(iso: string | null) {
   const d = new Date(iso);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
   }
-  return d.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit' });
+  return d.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' });
 }
 
 /** Mensagens: conversas à esquerda, a conversa aberta à direita. */

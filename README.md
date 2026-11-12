@@ -47,9 +47,9 @@ O identificador do app é `br.com.vendra.sixteennine` (em `app.json`). Troque an
 
 ## Idiomas
 
-O app abre no idioma do aparelho: português, inglês, espanhol, francês, italiano ou alemão. Qualquer outro idioma cai no inglês. Não há seletor dentro do app.
+O app abre no idioma do aparelho: português, inglês, espanhol, francês, italiano ou alemão. Qualquer outro idioma cai no inglês. Em Perfil > Idioma dá para fixar um idioma ou voltar ao automático; a escolha fica salva no aparelho.
 
-- Os textos nascem em português nas telas, sempre dentro de `t('…')` (ou `plural(n, '…', '…')` quando há contagem), de `src/lib/i18n.ts`.
+- Os textos nascem em português nas telas, sempre dentro de `t('…')` (ou `plural(n, '…', '…')` quando há contagem), de `src/lib/i18n.ts`. Chame `t()` dentro de funções, nunca solto no arquivo, para acompanhar a troca de idioma.
 - Cada idioma é um arquivo em `src/locales/`, que leva o texto em português à tradução.
 - `npm run i18n` acusa texto sem tradução, tradução sobrando e `{valores}` que não batem. Rode sempre que mexer em textos.
 - As frases de permissão do iPhone (câmera, microfone, fotos) ficam em `locales/*.json`, e as notificações em `supabase/functions/notify`.

@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { language, t } from '@/lib/i18n';
+import { getLanguage, t } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 
 /** O que a pessoa acabou de fazer e que merece avisar alguém. */
@@ -56,7 +56,7 @@ export async function registerForPush() {
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
     // O idioma vai junto para a notificação chegar na língua do aparelho.
     const device = { device_token: token, device_platform: Platform.OS };
-    let { error } = await supabase.rpc('register_push_token', { ...device, device_language: language });
+    let { error } = await supabase.rpc('register_push_token', { ...device, device_language: getLanguage() });
     // Servidor ainda sem a coluna de idioma: registra do jeito antigo.
     if (error) ({ error } = await supabase.rpc('register_push_token', device));
     if (!error) currentToken = token;

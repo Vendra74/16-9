@@ -16,7 +16,7 @@ import { t } from '@/lib/i18n';
 
 type Sort = 'top' | 'recent';
 
-const SORTS: { key: Sort; label: string }[] = [
+const sorts = (): { key: Sort; label: string }[] => [
   { key: 'top', label: t('Em alta') },
   { key: 'recent', label: t('Recentes') },
 ];
@@ -95,7 +95,7 @@ export default function ExploreScreen() {
         />
         {query.trim() ? null : (
           <View style={styles.chips}>
-            {SORTS.map((s) => (
+            {sorts().map((s) => (
               <Pressable
                 key={s.key}
                 onPress={() => setSort(s.key)}
