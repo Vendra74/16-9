@@ -8,9 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
+import { FollowPanel } from '@/components/follow-panel';
 import { Button, Field, FormMessage } from '@/components/form';
+import { ProfileCountsRow } from '@/components/profile-counts';
+import { ProfileLinks } from '@/components/profile-links';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
+import { fetchCounts, type FollowKind, type ProfileCounts } from '@/lib/follows';
+import { MAX_LINKS, normalizeLink } from '@/lib/links';
 import { cropAndResize, publicUrl, uploadJpeg } from '@/lib/images';
 import { fetchBlocked, unblockUser, type MiniProfile } from '@/lib/messages';
 import { deletePost, fetchUserPosts, postImageUrl, type FeedPost } from '@/lib/posts';
@@ -42,6 +47,15 @@ export default function ProfileScreen() {
   const [attempt, setAttempt] = useState(0);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [counts, setCounts] = useState<ProfileCounts | null>(null);
+  const [list, setList] = useState<FollowKind | null>(null);
+
+  const loadCounts = useCallback(() => {
+    if (userId) fetchCounts(userId).then(setCounts).catch(() => {});
+  }, [userId]);
+
+  // Atualiza os números ao voltar para o Perfil (ex.: depois de seguir alguém).
+  useFocusEffect(loadCounts);
 
   useEffect(() => {
     if (!userId) return;
@@ -127,7 +141,14 @@ export default function ProfileScreen() {
         <Text style={styles.name}>{profile.display_name || profile.username}</Text>
         <Text style={styles.handle}>@{profile.username}</Text>
         {details ? <Text style={styles.details}>{details}</Text> : null}
+        <ProfileCountsRow counts={counts} onOpen={setList} />
         {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+        <ProfileLinks links={profile.links} />
+        {!profile.bio && !profile.links?.length && panel !== 'edit' ? (
+          <Pressable onPress={() => setPanel('edit')} hitSlop={6}>
+            <Text style={styles.addBio}>{t('+ Adicionar bio e links')}</Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.actions}>
           <Button
@@ -186,15 +207,22 @@ export default function ProfileScreen() {
         ) : panel === 'account' ? (
           <AccountPanel />
         ) : (
-          <MyWorks userId={profile.id} />
+          <MyWorks userId={profile.id} onChanged={loadCounts} />
         )}
       </ScrollView>
+      <FollowPanel
+        userId={list ? profile.id : null}
+        kind={list ?? 'followers'}
+        onKindChange={setList}
+        onClose={() => setList(null)}
+        onChanged={loadCounts}
+      />
     </View>
   );
 }
 
 /** Portfólio: os trabalhos da pessoa em 16:9. Segurar um trabalho oferece apagar. */
-function MyWorks({ userId }: { userId: string }) {
+function MyWorks({ userId, onChanged }: { userId: string; onChanged: () => void }) {
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [error, setError] = useState(false);
 
@@ -219,6 +247,7 @@ function MyWorks({ userId }: { userId: string }) {
           try {
             await deletePost(post);
             setPosts((list) => list?.filter((p) => p.id !== post.id) ?? null);
+            onChanged();
           } catch {
             Alert.alert(t('Não foi possível apagar'), t('Confira a internet e tente de novo.'));
           }
@@ -419,9 +448,18 @@ function AccountPanel() {
 
 function EditProfile({ profile, onSaved }: { profile: Profile; onSaved: (profile: Profile) => void }) {
   const [form, setForm] = useState(profile);
+  const [links, setLinks] = useState<string[]>(profile.links ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (key: keyof Profile) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
+  // Sempre há um campo vazio a mais para o próximo link, até o limite.
+  const linkFields = links.length < MAX_LINKS ? [...links, ''] : links;
+  const setLink = (index: number) => (value: string) =>
+    setLinks((list) => {
+      const next = [...list];
+      next[index] = value;
+      return next;
+    });
 
   async function save() {
     setError(null);
@@ -435,10 +473,19 @@ function EditProfile({ profile, onSaved }: { profile: Profile; onSaved: (profile
     if (!USERNAME_PATTERN.test(changes.username)) {
       return setError(t('O @ precisa ter de 3 a 24 letras, números, ponto ou _.'));
     }
+    const typed = links.map((link) => link.trim()).filter(Boolean);
+    const cleanLinks: string[] = [];
+    for (const link of typed) {
+      const clean = normalizeLink(link);
+      if (!clean) return setError(t('Confira este link: {link}', { link }));
+      if (!cleanLinks.includes(clean)) cleanLinks.push(clean);
+    }
+    // Só manda os links quando mudaram, para o resto salvar mesmo antes do SQL dos links.
+    const linksChanged = cleanLinks.join('\n') !== (profile.links ?? []).join('\n');
     setBusy(true);
     try {
-      await updateProfile(profile.id, changes);
-      onSaved({ ...profile, ...changes });
+      await updateProfile(profile.id, linksChanged ? { ...changes, links: cleanLinks } : changes);
+      onSaved({ ...profile, ...changes, links: cleanLinks });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('Não foi possível salvar.'));
     } finally {
@@ -486,6 +533,23 @@ function EditProfile({ profile, onSaved }: { profile: Profile; onSaved: (profile
         multiline
         maxLength={300}
       />
+      <View style={styles.linkFields}>
+        {linkFields.map((link, index) => (
+          <Field
+            key={index}
+            label={index === 0 ? t('Links') : ''}
+            hint={index === linkFields.length - 1 ? t('Site, portfólio, Instagram, Vimeo… até {n} links.', { n: MAX_LINKS }) : undefined}
+            placeholder={index === 0 ? t('seusite.com.br') : t('instagram.com/seuperfil')}
+            value={link}
+            onChangeText={setLink(index)}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            textContentType="URL"
+            maxLength={200}
+          />
+        ))}
+      </View>
       <FormMessage text={error} />
       <Button title={t('Salvar')} onPress={save} loading={busy} />
     </View>
@@ -592,6 +656,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     marginTop: Spacing.sm,
+  },
+  addBio: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: Spacing.sm,
+  },
+  linkFields: {
+    gap: Spacing.xs,
   },
   actions: {
     alignSelf: 'stretch',

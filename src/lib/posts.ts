@@ -59,6 +59,18 @@ export async function fetchFeed(limit = 50) {
   return data;
 }
 
+/** Aba "Seguindo": só os trabalhos de quem você segue. */
+export async function fetchFollowingFeed(limit = 50) {
+  const { data, error } = await supabase
+    .rpc('following_posts')
+    .select(COLUMNS)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+    .overrideTypes<FeedPost[], { merge: false }>();
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchUserPosts(userId: string) {
   const { data, error } = await supabase
     .from('posts')
