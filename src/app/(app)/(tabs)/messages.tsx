@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -156,7 +156,8 @@ export default function MessagesScreen() {
 }
 
 function Chat({ conversationId, me }: { conversationId: string; me: string }) {
-  const { onMessage, onDeleted, refresh } = useInbox();
+  const { conversations, onMessage, onDeleted, refresh } = useInbox();
+  const focused = useIsFocused();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [text, setText] = useState('');
@@ -172,9 +173,21 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   const [playing, setPlaying] = useState<string | null>(null);
   const processing = messages?.some((m) => m.status === 'processing') ?? false;
 
-  const read = useCallback(() => {
-    markRead(conversationId).then(refresh);
-  }, [conversationId, refresh]);
+  // Como a lista de conversas vê esta conversa agora: é por ela que se sabe de novidade.
+  const listed = conversations?.find((c) => c.id === conversationId);
+  const lastAt = listed?.last_message_at ?? null;
+  const unread = listed ? isUnread(listed, me) : false;
+
+  /** Junta o que veio do servidor com o que já está na tela, sem repetir nem perder nada. */
+  const merge = useCallback((list: Message[]) => {
+    setMessages((current) => {
+      const known = new Set(list.map((m) => m.id));
+      const newestListed = list[0]?.created_at ?? '';
+      // Mantém o que acabou de sair daqui e o servidor ainda não devolveu.
+      const extra = (current ?? []).filter((m) => !known.has(m.id) && m.created_at > newestListed);
+      return [...extra, ...list];
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -182,8 +195,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       .then(([c, list]) => {
         if (!active) return;
         setConversation(c);
-        setMessages(list);
-        read();
+        merge(list);
         // Se você já tinha bloqueado a pessoa, a conversa abre fechada, com a opção de desbloquear.
         const other = c.user_a === me ? c.user_b : c.user_a;
         isBlockedByMe(other)
@@ -194,7 +206,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
     return () => {
       active = false;
     };
-  }, [conversationId, read, me]);
+  }, [conversationId, merge, me]);
 
   // Mensagem apagada (por qualquer um dos dois) some da tela na hora.
   useEffect(
@@ -209,10 +221,44 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
         if (incoming.conversation_id !== conversationId) return;
         const full = incoming.post_id ? await fetchMessage(incoming.id).catch(() => incoming) : incoming;
         setMessages((list) => (list && !list.some((m) => m.id === full.id) ? [full, ...list] : list));
-        if (full.sender_id !== me) read();
       }),
-    [onMessage, conversationId, me, read],
+    [onMessage, conversationId],
   );
+
+  // O tempo real pode falhar (app em segundo plano, rede oscilando). Quando a
+  // lista de conversas mostra uma mensagem mais nova que a última desta tela,
+  // busca de novo. Uma vez por novidade, para não ficar repetindo.
+  const newest = messages?.[0]?.created_at ?? null;
+  const loaded = messages !== null;
+  const synced = useRef<string | null>(null);
+  /** Muda para tentar de novo depois de uma falha de rede. */
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setTimeout(() => setAttempt((n) => n + 1), 5000), []);
+  useEffect(() => {
+    if (!loaded || !lastAt || synced.current === lastAt) return;
+    if (newest && new Date(newest) >= new Date(lastAt)) return;
+    synced.current = lastAt;
+    fetchMessages(conversationId)
+      .then(merge)
+      .catch(() => {
+        synced.current = null;
+        retry();
+      });
+  }, [loaded, lastAt, newest, conversationId, merge, retry, attempt]);
+
+  // Marca como lida só com a conversa de fato na frente da pessoa, e sempre que
+  // houver algo não lido: assim o ponto vermelho não fica preso.
+  const marked = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focused || !loaded || !unread || !lastAt || marked.current === lastAt) return;
+    marked.current = lastAt;
+    markRead(conversationId)
+      .then(refresh)
+      .catch(() => {
+        marked.current = null;
+        retry();
+      });
+  }, [focused, loaded, unread, lastAt, conversationId, refresh, retry, attempt]);
 
   // Enquanto um vídeo da conversa está sendo processado, confere de tempos em tempos se ficou pronto.
   useEffect(() => {
@@ -264,6 +310,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       setStep(t('Preparando…'));
       const sent = await sendMedia(conversationId, me, media, setStep);
       setMessages((list) => (list && !list.some((m) => m.id === sent.id) ? [sent, ...list] : list));
+      refresh();
     } catch {
       setError(t('Não foi possível enviar. Confira a internet e tente de novo.'));
     } finally {
@@ -278,6 +325,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
     try {
       const sent = await sendVoice(conversationId, me, uri, seconds);
       setMessages((list) => (list && !list.some((m) => m.id === sent.id) ? [sent, ...list] : list));
+      refresh();
     } catch {
       setError(t('Não foi possível enviar. Confira a internet e tente de novo.'));
     } finally {
@@ -294,6 +342,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
       const sent = await sendMessage(conversationId, body);
       setText('');
       setMessages((list) => (list && !list.some((m) => m.id === sent.id) ? [sent, ...list] : list));
+      refresh();
     } catch {
       setError(t('Não foi possível enviar. Se você bloqueou ou foi bloqueado, a conversa fica fechada.'));
     } finally {
@@ -338,7 +387,8 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
             message={item}
             mine={item.sender_id === me}
             playing={playing === item.id}
-            onPlay={setPlaying}
+            // Gravando, não toca: os dois ao mesmo tempo estragam a gravação.
+            onPlay={(id) => !recording && setPlaying(id)}
             onOpen={() => setViewing(item)}
             onDelete={() => confirmDelete(item)}
           />

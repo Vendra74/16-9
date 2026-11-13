@@ -314,4 +314,6 @@ export const it: Record<string, string> = {
   'Para você': 'Per te',
   'Siga criadores para ver os trabalhos deles aqui': 'Segui dei creator per vedere qui i loro lavori',
   'Encontre gente no Explorar e toque em Seguir no perfil.': 'Trova persone in Esplora e tocca Segui sul loro profilo.',
+  'Não ouvimos nada': 'Non abbiamo sentito nulla',
+  'A gravação ficou sem som e não foi enviada. Tente de novo.': 'La registrazione era senza audio e non è stata inviata. Riprova.',
 };

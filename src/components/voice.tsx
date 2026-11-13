@@ -8,7 +8,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ApertureLoader } from '@/components/aperture';
 import { PlayIcon, SendIcon } from '@/components/rail-icons';
@@ -18,7 +18,17 @@ import { messageImageUrl } from '@/lib/images';
 import { MAX_VOICE_SECONDS, type Message } from '@/lib/messages';
 
 /** Voz não precisa de estéreo nem de taxa alta: arquivo pequeno, envio rápido. */
-const RECORDING = { ...RecordingPresets.HIGH_QUALITY, numberOfChannels: 1, bitRate: 64000 };
+const RECORDING = { ...RecordingPresets.HIGH_QUALITY, numberOfChannels: 1, bitRate: 64000, isMeteringEnabled: true };
+
+/** Abaixo deste nível (dB) o microfone não captou nada: gravação muda não é enviada. */
+const SILENCE_DB = -55;
+
+/** Tocar: alto-falante, mesmo com a chave de silêncio ligada, sem dividir a saída com outro som. */
+const PLAYBACK = { allowsRecording: false, playsInSilentMode: true, interruptionMode: 'doNotMix' } as const;
+const CAPTURE = { ...PLAYBACK, allowsRecording: true } as const;
+
+/** Sem começar a tocar neste tempo, avisa em vez de deixar o balão mudo. */
+const LOAD_TIMEOUT_MS = 15000;
 
 /** Gravações mais curtas que isto são toque sem querer. */
 const MIN_SECONDS = 1;
@@ -44,6 +54,12 @@ export function VoiceRecorder({
   const [failed, setFailed] = useState(false);
   const finishing = useRef(false);
   const seconds = state.durationMillis / 1000;
+  // O som mais alto captado até agora; `null` onde o aparelho não mede (navegador).
+  const loudest = useRef<number | null>(null);
+  const level = state.metering;
+  useEffect(() => {
+    if (typeof level === 'number' && (loudest.current === null || level > loudest.current)) loudest.current = level;
+  }, [level]);
 
   // Começa a gravar assim que a barra aparece.
   useEffect(() => {
@@ -63,7 +79,7 @@ export function VoiceRecorder({
           onCancel();
           return;
         }
-        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        await setAudioModeAsync(CAPTURE);
         await recorder.prepareToRecordAsync();
         if (active) recorder.record();
       } catch {
@@ -72,6 +88,9 @@ export function VoiceRecorder({
     })();
     return () => {
       active = false;
+      // Saiu da barra por qualquer caminho (trocou de conversa, fechou a tela):
+      // o aparelho não pode ficar em modo de gravação, que toca baixo, pelo fone do ouvido.
+      setAudioModeAsync(PLAYBACK).catch(() => {});
     };
     // Só na montagem: a barra existe enquanto durar esta gravação.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,7 +103,7 @@ export function VoiceRecorder({
     } catch {
       // Já parada.
     }
-    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    await setAudioModeAsync(PLAYBACK).catch(() => {});
   }
 
   async function finish(send: boolean) {
@@ -93,9 +112,26 @@ export function VoiceRecorder({
     const length = recorder.currentTime || seconds;
     await stop();
     const uri = recorder.uri;
-    if (send && uri && length >= MIN_SECONDS) onSend(uri, Math.min(length, MAX_VOICE_SECONDS));
+    const silent = loudest.current !== null && loudest.current < SILENCE_DB;
+    if (send && silent) {
+      Alert.alert(t('Não ouvimos nada'), t('A gravação ficou sem som e não foi enviada. Tente de novo.'));
+      onCancel();
+    } else if (send && uri && length >= MIN_SECONDS) onSend(uri, Math.min(length, MAX_VOICE_SECONDS));
     else onCancel();
   }
+
+  // Saiu do app no meio da gravação (bloqueou a tela, trocou de app): descarta.
+  // O sistema corta o microfone nessa hora, e o que sobraria é um áudio mudo.
+  const cancel = useRef(() => {});
+  useEffect(() => {
+    cancel.current = () => finish(false);
+  });
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'background') cancel.current();
+    });
+    return () => subscription.remove();
+  }, []);
 
   // No limite, a gravação para sozinha e fica esperando "Enviar" ou "Cancelar".
   const atLimit = seconds >= MAX_VOICE_SECONDS;
@@ -212,15 +248,35 @@ function Player({
   mine: boolean;
   onStop: () => void;
 }) {
-  const player = useAudioPlayer(url, { updateInterval: 200 });
+  // Baixa o arquivo antes de tocar: mais confiável que tocar direto do endereço temporário.
+  const player = useAudioPlayer(url, { updateInterval: 200, downloadFirst: true });
   const status = useAudioPlayerStatus(player);
+  const loaded = status.isLoaded;
+  const started = status.playing || status.currentTime > 0;
 
+  // Só manda tocar com o arquivo carregado e o aparelho já em modo de tocar.
   useEffect(() => {
-    // Toca mesmo com a chave de silêncio do iPhone ligada: a pessoa pediu para ouvir.
-    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true })
+    if (!loaded) return;
+    let active = true;
+    setAudioModeAsync(PLAYBACK)
       .catch(() => {})
-      .then(() => player.play());
-  }, [player]);
+      .then(() => {
+        if (active) player.play();
+      });
+    return () => {
+      active = false;
+    };
+  }, [player, loaded]);
+
+  // Não começou a tocar: avisa, em vez de ficar parado sem som.
+  useEffect(() => {
+    if (started) return;
+    const timer = setTimeout(() => {
+      Alert.alert(t('Não foi possível tocar o áudio.'), t('Confira a internet e tente de novo.'));
+      onStop();
+    }, LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [started, onStop]);
 
   // Terminou: o balão volta ao estado parado.
   useEffect(() => {
