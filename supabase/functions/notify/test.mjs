@@ -91,6 +91,18 @@ r = await call('Bearer b', { kind: 'message', id: MSG });
 assert.deepEqual(r.body, { skipped: 'not_found' }); assert.equal(sentBatches.length, 0);
 
 // coisa antiga não notifica (evita repetição)
+// Pedido de mensagem ainda não aceito: sem notificação. Aceito, ou resposta de quem recebeu: notifica.
+reset(); Object.assign(tables.conversations[0], { accepted: false, started_by: A });
+assert.deepEqual((await call('Bearer a', { kind: 'message', id: MSG })).body, { skipped: 'request' }); assert.equal(sentBatches.length, 0);
+reset(); Object.assign(tables.conversations[0], { accepted: false, started_by: B });
+assert.equal((await call('Bearer a', { kind: 'message', id: MSG })).body.sent, 2);
+
+// Quem recebe silenciou a conversa: sem notificação. Quem envia ter silenciado não muda nada.
+reset(); Object.assign(tables.conversations[0], { b_muted: true });
+assert.deepEqual((await call('Bearer a', { kind: 'message', id: MSG })).body, { skipped: 'muted' }); assert.equal(sentBatches.length, 0);
+reset(); Object.assign(tables.conversations[0], { a_muted: true });
+assert.equal((await call('Bearer a', { kind: 'message', id: MSG })).body.sent, 2);
+
 reset(); tables.messages[0].created_at = new Date(Date.now() - 10 * 60e3).toISOString();
 assert.deepEqual((await call('Bearer a', { kind: 'message', id: MSG })).body, { skipped: 'stale' });
 

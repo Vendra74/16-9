@@ -218,13 +218,22 @@ async function compose(userId: string, input: Record<string, unknown>): Promise<
     );
     if (!message) return { skipped: 'not_found' };
     if (!isFresh(message.created_at)) return { skipped: 'stale' };
-    const [conversation] = await db<{ user_a: string; user_b: string }>(
-      'GET',
-      'conversations',
-      `select=user_a,user_b&id=eq.${message.conversation_id}`,
-    );
+    // `*`: as colunas de pedido e de silenciar podem ainda não existir no banco.
+    const [conversation] = await db<{
+      user_a: string;
+      user_b: string;
+      accepted?: boolean;
+      started_by?: string | null;
+      a_muted?: boolean;
+      b_muted?: boolean;
+    }>('GET', 'conversations', `select=*&id=eq.${message.conversation_id}`);
     if (!conversation) return { skipped: 'not_found' };
     const to = conversation.user_a === userId ? conversation.user_b : conversation.user_a;
+    // Pedido de quem a pessoa não segue fica quieto na caixa de pedidos, sem notificação.
+    if (conversation.accepted === false && conversation.started_by === userId) return { skipped: 'request' };
+    // Quem silenciou a conversa não é avisado.
+    const muted = conversation.user_a === to ? conversation.a_muted : conversation.b_muted;
+    if (muted === true) return { skipped: 'muted' };
     const name = await sender();
     return {
       to,

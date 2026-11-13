@@ -30,6 +30,26 @@ async function upload(bucket: string, folder: string, uri: string, extension: st
   return path;
 }
 
+/**
+ * Copia uma foto ou um áudio de uma conversa para a pasta de outra (encaminhar).
+ * Baixa pelo endereço temporário e envia de novo: o servidor só aceita arquivo
+ * na pasta da conversa de quem está enviando.
+ */
+export async function copyMessageFile(path: string, folder: string) {
+  const url = await messageImageUrl(path);
+  const response = Platform.OS === 'web' ? await fetch(url) : await (await import('expo/fetch')).fetch(url);
+  if (!response.ok) throw new Error('download_failed');
+  const body = await response.arrayBuffer();
+  const extension = path.split('.').pop() || 'jpg';
+  const contentType =
+    extension === 'jpg' ? 'image/jpeg' : extension === 'webm' ? 'audio/webm' : extension === 'm4a' ? 'audio/mp4' : 'application/octet-stream';
+  const random = Math.random().toString(36).slice(2, 10);
+  const copy = `${folder}/${Date.now()}-${random}.${extension}`;
+  const { error } = await supabase.storage.from('messages').upload(copy, body, { contentType });
+  if (error) throw error;
+  return copy;
+}
+
 /** Envia um JPEG para `<bucket>/<pasta>/<nome>.jpg` e devolve o caminho. */
 export function uploadJpeg(bucket: 'posts' | 'avatars' | 'messages', folder: string, uri: string) {
   return upload(bucket, folder, uri, 'jpg', 'image/jpeg');
