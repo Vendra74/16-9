@@ -1,4 +1,4 @@
-import { cropAndResize, uploadJpeg, uploadVoice } from '@/lib/images';
+import { copyMessageFile, cropAndResize, uploadJpeg, uploadVoice } from '@/lib/images';
 import { notify } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 import { makePoster, requestUpload, uploadVideo } from '@/lib/video';
@@ -23,6 +23,16 @@ export type Conversation = {
   /** Quando o app de cada pessoa buscou as mensagens pela última vez. Ausente em bancos ainda sem a coluna. */
   a_delivered_at?: string;
   b_delivered_at?: string;
+  /** O "lida" que a outra pessoa vê (fica parado para quem desligou a confirmação de leitura). */
+  a_seen_at?: string | null;
+  b_seen_at?: string | null;
+  /** Quem mandou a primeira mensagem, e se quem recebeu já aceitou (pedidos de mensagem). */
+  started_by?: string | null;
+  accepted?: boolean;
+  a_muted?: boolean;
+  b_muted?: boolean;
+  a_pinned?: boolean;
+  b_pinned?: boolean;
   a: MiniProfile | null;
   b: MiniProfile | null;
 };
@@ -53,6 +63,12 @@ export type Message = {
   duration: number | null;
   /** A mensagem de voz, no bucket privado "messages". Ausente em bancos ainda sem a coluna. */
   audio_path?: string | null;
+  /** A mensagem a que esta responde. */
+  reply_to?: string | null;
+  edited_at?: string | null;
+  /** Quem reagiu e com qual emoji, pelo id da pessoa. */
+  reactions?: Record<string, string> | null;
+  forwarded?: boolean;
   post?: SharedPost | null;
 };
 
@@ -82,14 +98,112 @@ export function isUnread(c: Conversation, me: string) {
 export type Receipt = 'sent' | 'delivered' | 'read';
 
 /** Em que ponto está uma mensagem minha, pelo que a conversa sabe da outra pessoa. */
-export function receiptOf(sentAt: string, c: Conversation, me: string): Receipt {
+export function receiptOf(sentAt: string, c: Conversation, me: string, hideRead = false): Receipt {
   const mineIsA = c.user_a === me;
   const sent = new Date(sentAt).getTime();
-  const readAt = mineIsA ? c.b_read_at : c.a_read_at;
-  if (readAt && new Date(readAt).getTime() >= sent) return 'read';
+  // Banco novo: vale o "lida" que a pessoa aceitou mostrar. Banco antigo: o de sempre.
+  const seenAt = 'a_seen_at' in c ? (mineIsA ? c.b_seen_at : c.a_seen_at) : mineIsA ? c.b_read_at : c.a_read_at;
+  // Quem esconde a própria leitura também não vê a dos outros.
+  if (!hideRead && seenAt && new Date(seenAt).getTime() >= sent) return 'read';
   const deliveredAt = mineIsA ? c.b_delivered_at : c.a_delivered_at;
   if (deliveredAt && new Date(deliveredAt).getTime() >= sent) return 'delivered';
   return 'sent';
+}
+
+/** Um pedido de mensagem que EU recebi e ainda não aceitei. */
+export function isRequest(c: Conversation, me: string) {
+  return c.accepted === false && c.started_by !== me;
+}
+
+/** Um pedido que eu enviei e a outra pessoa ainda não aceitou. */
+export function isPendingRequest(c: Conversation, me: string) {
+  return c.accepted === false && c.started_by === me;
+}
+
+export function isMuted(c: Conversation, me: string) {
+  return (c.user_a === me ? c.a_muted : c.b_muted) === true;
+}
+
+export function isPinned(c: Conversation, me: string) {
+  return (c.user_a === me ? c.a_pinned : c.b_pinned) === true;
+}
+
+export async function acceptConversation(id: string) {
+  const { error } = await supabase.rpc('accept_conversation', { conv: id });
+  if (error) throw error;
+}
+
+/** Recusa um pedido: a conversa some para as duas pessoas. */
+export async function declineConversation(id: string) {
+  const { error } = await supabase.rpc('decline_conversation', { conv: id });
+  if (error) throw error;
+}
+
+/** Silenciar e fixar valem só para quem escolheu. `undefined` deixa como está. */
+export async function setConversationFlags(id: string, flags: { muted?: boolean; pinned?: boolean }) {
+  const { error } = await supabase.rpc('set_conversation_flags', {
+    conv: id,
+    muted: flags.muted ?? null,
+    pinned: flags.pinned ?? null,
+  });
+  if (error) throw error;
+}
+
+/** Emojis oferecidos para reagir a uma mensagem. */
+export const REACTIONS = ['❤️', '😂', '😮', '😢', '👏', '🔥'];
+
+/** Reage a uma mensagem; `null` tira a reação. */
+export async function reactToMessage(id: string, emoji: string | null) {
+  const { error } = await supabase.rpc('react_to_message', { msg: id, emoji: emoji ?? '' });
+  if (error) throw error;
+}
+
+/** Por quanto tempo uma mensagem de texto pode ser editada. O servidor confere de novo. */
+const EDIT_MINUTES = 15;
+
+export function canEdit(m: Message, me: string) {
+  return (
+    m.sender_id === me &&
+    m.kind === 'text' &&
+    m.body !== '' &&
+    Date.now() - new Date(m.created_at).getTime() < EDIT_MINUTES * 60e3
+  );
+}
+
+export async function editMessage(id: string, body: string) {
+  const { error } = await supabase.rpc('edit_message', { msg: id, new_body: body });
+  if (error) throw error;
+}
+
+/** Vídeo não é encaminhado: o arquivo fica no serviço de vídeo, preso à mensagem original. */
+export function canForward(m: Message) {
+  return m.kind !== 'video' && m.status === 'ready';
+}
+
+/** Manda uma cópia da mensagem para outra conversa, marcada como encaminhada. */
+export async function forwardMessage(m: Message, conversationId: string, me: string) {
+  const folder = `${conversationId}/${me}`;
+  const row: Record<string, unknown> = { conversation_id: conversationId, forwarded: true, kind: m.kind };
+  if (m.body) row.body = m.body;
+  if (m.post_id) row.post_id = m.post_id;
+  if (m.kind === 'photo' && m.image_path) {
+    row.image_path = await copyMessageFile(m.image_path, folder);
+    row.image_width = m.image_width;
+    row.image_height = m.image_height;
+  }
+  if (m.kind === 'audio' && m.audio_path) {
+    row.audio_path = await copyMessageFile(m.audio_path, folder);
+    row.duration = m.duration;
+  }
+  const { data, error } = await supabase
+    .from('messages')
+    .insert(row)
+    .select(MESSAGE)
+    .single()
+    .overrideTypes<Message, { merge: false }>();
+  if (error) throw error;
+  notify({ kind: 'message', id: data.id });
+  return data;
 }
 
 /** Tem mensagem da outra pessoa que este aparelho ainda não avisou ter recebido? */
@@ -184,10 +298,11 @@ export async function fetchMessage(id: string) {
   return data;
 }
 
-export async function sendMessage(conversationId: string, body: string, postId?: string) {
+export async function sendMessage(conversationId: string, body: string, postId?: string, replyTo?: string) {
   const { data, error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, body, post_id: postId ?? null })
+    // `reply_to` só vai quando existe: num banco ainda sem a coluna, mensagem comum segue funcionando.
+    .insert({ conversation_id: conversationId, body, post_id: postId ?? null, ...(replyTo ? { reply_to: replyTo } : {}) })
     .select(MESSAGE)
     .single()
     .overrideTypes<Message, { merge: false }>();

@@ -147,3 +147,36 @@ export function ReceiptIcon({ color, size = 14, both }: IconProps & { both: bool
     </Svg>
   );
 }
+
+/** Alfinete: conversa fixada no topo. */
+export function PinIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 3h6l-1 6 3.5 4h-11L10 9 9 3ZM12 13v8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/** Sino cortado: conversa silenciada. */
+export function MutedIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6.5 9.5a5.5 5.5 0 0 1 9-4.2M17.5 10v3l1.5 3.5H8M10 19.5a2 2 0 0 0 4 0M4 4l16 16"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** Seta curva para a esquerda: responder. */
+export function ReplyIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M10 6 4 12l6 6M4 12h10a6 6 0 0 1 6 6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}

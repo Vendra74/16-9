@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
@@ -17,6 +17,7 @@ import { settingsLine } from '@/lib/exif';
 import { fetchCounts, type FollowKind, type ProfileCounts } from '@/lib/follows';
 import { MAX_LINKS, normalizeLink } from '@/lib/links';
 import { cropAndResize, publicUrl, uploadJpeg } from '@/lib/images';
+import { useInbox } from '@/lib/inbox';
 import { fetchBlocked, setPresence, unblockUser, type MiniProfile } from '@/lib/messages';
 import { deletePost, fetchUserPosts, postImageUrl, type FeedPost } from '@/lib/posts';
 import {
@@ -399,8 +400,18 @@ function LanguagePicker() {
 
 /** Termos, privacidade e apagar a conta (exigência do Google Play e da App Store). */
 function AccountPanel() {
+  const { privacy, setPrivacy } = useInbox();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function change(changes: { hide_read?: boolean; hide_online?: boolean }) {
+    setError(null);
+    try {
+      await setPrivacy(changes);
+    } catch {
+      setError(t('Não foi possível salvar. Confira a internet e tente de novo.'));
+    }
+  }
 
   async function remove() {
     setError(null);
@@ -435,6 +446,31 @@ function AccountPanel() {
         <Pressable onPress={openPrivacy} hitSlop={6} accessibilityRole="link">
           <Text style={styles.legalLink}>{t('Política de privacidade')}</Text>
         </Pressable>
+      </View>
+      <Text style={styles.sectionTitle}>{t('Mensagens')}</Text>
+      <View style={styles.switchRow}>
+        <View style={styles.switchText}>
+          <Text style={styles.switchTitle}>{t('Mostrar quando li as mensagens')}</Text>
+          <Text style={styles.emptyText}>{t('Desligado, você também não vê quando leram as suas.')}</Text>
+        </View>
+        <Switch
+          value={!privacy.hide_read}
+          onValueChange={(on) => change({ hide_read: !on })}
+          trackColor={{ true: Colors.silver, false: Colors.surfaceRaised }}
+          accessibilityLabel={t('Mostrar quando li as mensagens')}
+        />
+      </View>
+      <View style={styles.switchRow}>
+        <View style={styles.switchText}>
+          <Text style={styles.switchTitle}>{t('Mostrar quando estou online')}</Text>
+          <Text style={styles.emptyText}>{t('Desligado, você também não vê quem está online nem o visto por último.')}</Text>
+        </View>
+        <Switch
+          value={!privacy.hide_online}
+          onValueChange={(on) => change({ hide_online: !on })}
+          trackColor={{ true: Colors.silver, false: Colors.surfaceRaised }}
+          accessibilityLabel={t('Mostrar quando estou online')}
+        />
       </View>
       <Text style={styles.dangerTitle}>{t('Apagar conta')}</Text>
       <Text style={styles.emptyText}>
@@ -596,6 +632,25 @@ function FeedbackForm({ onSent }: { onSent: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  sectionTitle: {
+    color: Colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: Spacing.lg,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  switchText: {
+    flex: 1,
+    gap: 2,
+  },
+  switchTitle: {
+    color: Colors.text,
+    fontSize: 15,
+  },
   center: {
     flex: 1,
     alignItems: 'center',

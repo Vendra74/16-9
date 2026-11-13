@@ -6,6 +6,7 @@ import {
   fetchConversations,
   fetchPresence,
   hasUndelivered,
+  isRequest,
   isUnread,
   markDelivered,
   setPresence,
@@ -19,9 +20,18 @@ import { supabase } from '@/lib/supabase';
 type Listener = (message: Message) => void;
 type DeleteListener = (id: string) => void;
 
+/** O que a pessoa escolheu esconder dos outros (Perfil > Conta e privacidade). */
+export type Privacy = { hide_read: boolean; hide_online: boolean };
+
 type InboxState = {
   conversations: Conversation[] | null;
   unreadCount: number;
+  /** Pedidos de mensagem que recebi e ainda não respondi. */
+  requestCount: number;
+  /** Aumenta a cada conferência periódica: a conversa aberta aproveita para se conferir também. */
+  tick: number;
+  privacy: Privacy;
+  setPrivacy: (changes: Partial<Privacy>) => Promise<void>;
   /** Online / visto por último das pessoas com quem converso, pelo id delas. */
   presence: Record<string, Presence>;
   refresh: () => Promise<void>;
@@ -29,15 +39,22 @@ type InboxState = {
   onMessage: (listener: Listener) => () => void;
   /** Recebe o id de cada mensagem apagada. */
   onDeleted: (listener: DeleteListener) => () => void;
+  /** Recebe cada mensagem que mudou (editada, reação nova). */
+  onChanged: (listener: Listener) => () => void;
 };
 
 const InboxContext = createContext<InboxState>({
   conversations: null,
   unreadCount: 0,
+  requestCount: 0,
+  tick: 0,
+  privacy: { hide_read: false, hide_online: false },
+  setPrivacy: async () => {},
   presence: {},
   refresh: async () => {},
   onMessage: () => () => {},
   onDeleted: () => () => {},
+  onChanged: () => () => {},
 });
 
 /** De quanto em quanto tempo o app avisa que continua aberto. O servidor espera até 90 s. */
@@ -62,6 +79,9 @@ export function InboxProvider({ children }: { children: ReactNode }) {
   const [presence, setPresence_] = useState<Record<string, Presence>>({});
   const listeners = useRef(new Set<Listener>());
   const deleteListeners = useRef(new Set<DeleteListener>());
+  const changeListeners = useRef(new Set<Listener>());
+  const [tick, setTick] = useState(0);
+  const [privacy, setPrivacyState] = useState<Privacy>({ hide_read: false, hide_online: false });
 
   /** Religa o tempo real quando a ligação anterior morreu. */
   const [generation, setGeneration] = useState(0);
@@ -100,6 +120,10 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         listeners.current.forEach((listener) => listener(message));
         refresh();
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
+        const message = payload.new as Message;
+        changeListeners.current.forEach((listener) => listener(message));
+      })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
         const id = (payload.old as { id?: string }).id;
         if (id) deleteListeners.current.forEach((listener) => listener(id));
@@ -122,7 +146,9 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     const push =
       Platform.OS === 'web' ? null : Notifications.addNotificationReceivedListener(() => refresh());
     const timer = setInterval(() => {
-      if (AppState.currentState === 'active') refresh();
+      if (AppState.currentState !== 'active') return;
+      refresh();
+      setTick((n) => n + 1);
     }, POLL_MS);
 
     return () => {
@@ -162,6 +188,41 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const onChanged = useCallback((listener: Listener) => {
+    changeListeners.current.add(listener);
+    return () => {
+      changeListeners.current.delete(listener);
+    };
+  }, []);
+
+  // As escolhas de privacidade ficam no perfil. Em banco ainda sem as colunas, tudo aparece.
+  useEffect(() => {
+    if (!me) return;
+    let active = true;
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', me)
+      .single<Partial<Privacy>>()
+      .then(({ data }) => {
+        if (active && data) setPrivacyState({ hide_read: data.hide_read === true, hide_online: data.hide_online === true });
+      });
+    return () => {
+      active = false;
+    };
+  }, [me]);
+
+  const setPrivacy = useCallback(
+    async (changes: Partial<Privacy>) => {
+      if (!me) return;
+      const { error } = await supabase.from('profiles').update(changes).eq('id', me);
+      if (error) throw error;
+      setPrivacyState((current) => ({ ...current, ...changes }));
+      refresh();
+    },
+    [me, refresh],
+  );
+
   const onDeleted = useCallback((listener: DeleteListener) => {
     deleteListeners.current.add(listener);
     return () => {
@@ -169,9 +230,16 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const unreadCount = me ? (conversations ?? []).filter((c) => isUnread(c, me)).length : 0;
+  // Pedido de quem você não segue não acende o aviso de não lida: tem a própria contagem.
+  const unreadCount = me ? (conversations ?? []).filter((c) => isUnread(c, me) && !isRequest(c, me)).length : 0;
+  const requestCount = me ? (conversations ?? []).filter((c) => isRequest(c, me)).length : 0;
 
-  return <InboxContext value={{ conversations, unreadCount, presence, refresh, onMessage, onDeleted }}>{children}</InboxContext>;
+  return (
+    <InboxContext
+      value={{ conversations, unreadCount, requestCount, tick, privacy, setPrivacy, presence, refresh, onMessage, onDeleted, onChanged }}>
+      {children}
+    </InboxContext>
+  );
 }
 
 export function useInbox() {
