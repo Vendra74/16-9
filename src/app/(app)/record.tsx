@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraType } from 'expo-camera';
+import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -20,6 +21,8 @@ function clock(seconds: number) {
  * o limite de 1 minuto. Ao terminar, volta para o Publicar com o vídeo.
  */
 export default function RecordScreen() {
+  // Filmando, ninguém toca na tela: não deixa o aparelho bloquear no meio.
+  useKeepAwake('record');
   const insets = useSafeAreaInsets();
   const [camera, askCamera] = useCameraPermissions();
   const [mic, askMic] = useMicrophonePermissions();
