@@ -8,7 +8,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ApertureLoader } from '@/components/aperture';
 import { PlayIcon, SendIcon } from '@/components/rail-icons';
@@ -18,7 +18,10 @@ import { messageImageUrl } from '@/lib/images';
 import { MAX_VOICE_SECONDS, type Message } from '@/lib/messages';
 
 /** Voz não precisa de estéreo nem de taxa alta: arquivo pequeno, envio rápido. */
-const RECORDING = { ...RecordingPresets.HIGH_QUALITY, numberOfChannels: 1, bitRate: 64000 };
+const RECORDING = { ...RecordingPresets.HIGH_QUALITY, numberOfChannels: 1, bitRate: 64000, isMeteringEnabled: true };
+
+/** Abaixo deste nível (dB) o microfone não captou nada: gravação muda não é enviada. */
+const SILENCE_DB = -55;
 
 /** Tocar: alto-falante, mesmo com a chave de silêncio ligada, sem dividir a saída com outro som. */
 const PLAYBACK = { allowsRecording: false, playsInSilentMode: true, interruptionMode: 'doNotMix' } as const;
@@ -51,6 +54,12 @@ export function VoiceRecorder({
   const [failed, setFailed] = useState(false);
   const finishing = useRef(false);
   const seconds = state.durationMillis / 1000;
+  // O som mais alto captado até agora; `null` onde o aparelho não mede (navegador).
+  const loudest = useRef<number | null>(null);
+  const level = state.metering;
+  useEffect(() => {
+    if (typeof level === 'number' && (loudest.current === null || level > loudest.current)) loudest.current = level;
+  }, [level]);
 
   // Começa a gravar assim que a barra aparece.
   useEffect(() => {
@@ -103,9 +112,26 @@ export function VoiceRecorder({
     const length = recorder.currentTime || seconds;
     await stop();
     const uri = recorder.uri;
-    if (send && uri && length >= MIN_SECONDS) onSend(uri, Math.min(length, MAX_VOICE_SECONDS));
+    const silent = loudest.current !== null && loudest.current < SILENCE_DB;
+    if (send && silent) {
+      Alert.alert(t('Não ouvimos nada'), t('A gravação ficou sem som e não foi enviada. Tente de novo.'));
+      onCancel();
+    } else if (send && uri && length >= MIN_SECONDS) onSend(uri, Math.min(length, MAX_VOICE_SECONDS));
     else onCancel();
   }
+
+  // Saiu do app no meio da gravação (bloqueou a tela, trocou de app): descarta.
+  // O sistema corta o microfone nessa hora, e o que sobraria é um áudio mudo.
+  const cancel = useRef(() => {});
+  useEffect(() => {
+    cancel.current = () => finish(false);
+  });
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'background') cancel.current();
+    });
+    return () => subscription.remove();
+  }, []);
 
   // No limite, a gravação para sozinha e fica esperando "Enviar" ou "Cancelar".
   const atLimit = seconds >= MAX_VOICE_SECONDS;
