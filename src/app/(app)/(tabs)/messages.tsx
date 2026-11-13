@@ -40,6 +40,7 @@ import {
   unblockUser,
   type Conversation,
   type Message,
+  type Presence,
   type Receipt,
 } from '@/lib/messages';
 import { askModeration } from '@/lib/moderation';
@@ -57,6 +58,22 @@ function timeLabel(iso: string | null) {
     return d.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
   }
   return d.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' });
+}
+
+/** Verde de "online": o único ponto de cor da tela, de propósito. */
+const ONLINE = '#34C759';
+
+/** "online", ou quando a pessoa esteve com o app aberto pela última vez. */
+function presenceLabel(presence: Presence) {
+  if (presence.online) return t('online');
+  const seen = new Date(presence.last_seen_at);
+  const time = seen.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
+  const today = new Date();
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  if (seen.toDateString() === today.toDateString()) return t('visto por último às {time}', { time });
+  if (seen.toDateString() === yesterday.toDateString()) return t('visto por último ontem às {time}', { time });
+  const date = seen.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' });
+  return t('visto por último em {date} às {time}', { date, time });
 }
 
 /** Azul de "lida": um tom para o balão claro, outro para o fundo escuro da lista. */
@@ -81,7 +98,7 @@ export default function MessagesScreen() {
   const me = session?.user.id ?? '';
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ c?: string }>();
-  const { conversations, refresh } = useInbox();
+  const { conversations, presence, refresh } = useInbox();
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selected = params.c ?? conversations?.[0]?.id ?? null;
@@ -129,7 +146,12 @@ export default function MessagesScreen() {
                 <Pressable
                   onPress={() => open(item.id)}
                   style={[styles.item, item.id === selected && styles.itemSelected]}>
-                  <Avatar name={name} url={person?.avatar_url} size={40} />
+                  <View>
+                    <Avatar name={name} url={person?.avatar_url} size={40} />
+                    {person && presence[person.id]?.online ? (
+                      <View style={styles.onlineDot} accessible accessibilityLabel={t('online')} />
+                    ) : null}
+                  </View>
                   <View style={styles.itemText}>
                     <View style={styles.itemTop}>
                       <Text style={[styles.itemName, unread && styles.bold]} numberOfLines={1}>
@@ -179,7 +201,7 @@ export default function MessagesScreen() {
 }
 
 function Chat({ conversationId, me }: { conversationId: string; me: string }) {
-  const { conversations, onMessage, onDeleted, refresh } = useInbox();
+  const { conversations, presence, onMessage, onDeleted, refresh } = useInbox();
   const focused = useIsFocused();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
@@ -381,6 +403,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
   const receipts = listed ?? conversation;
   const person = otherPerson(conversation, me);
   const name = person?.display_name || person?.username || t('Alguém');
+  const seen = person ? presence[person.id] : undefined;
 
   return (
     <KeyboardAvoidingView style={styles.chatInner} behavior="padding">
@@ -388,7 +411,12 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
         <Avatar name={name} url={person?.avatar_url} size={32} />
         <View style={styles.flex}>
           <Text style={styles.chatName}>{name}</Text>
-          {person ? <Text style={styles.chatHandle}>@{person.username}</Text> : null}
+          {person ? (
+            <Text style={styles.chatHandle} numberOfLines={1}>
+              @{person.username}
+              {seen ? <Text style={seen.online && styles.onlineText}>{'  ·  ' + presenceLabel(seen)}</Text> : null}
+            </Text>
+          ) : null}
         </View>
         {person ? (
           <Pressable
@@ -689,6 +717,20 @@ const styles = StyleSheet.create({
   },
   textMine: {
     color: Colors.background,
+  },
+  onlineDot: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: ONLINE,
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  onlineText: {
+    color: ONLINE,
   },
   bubbleFoot: {
     flexDirection: 'row',

@@ -319,4 +319,8 @@ export const it: Record<string, string> = {
   'Enviada': 'Inviato',
   'Recebida': 'Ricevuto',
   'Lida': 'Letto',
+  'online': 'online',
+  'visto por último às {time}': 'ultimo accesso alle {time}',
+  'visto por último ontem às {time}': 'ultimo accesso ieri alle {time}',
+  'visto por último em {date} às {time}': 'ultimo accesso il {date} alle {time}',
 };

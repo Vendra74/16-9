@@ -319,4 +319,8 @@ export const de: Record<string, string> = {
   'Enviada': 'Gesendet',
   'Recebida': 'Zugestellt',
   'Lida': 'Gelesen',
+  'online': 'online',
+  'visto por último às {time}': 'zuletzt online um {time}',
+  'visto por último ontem às {time}': 'zuletzt online gestern um {time}',
+  'visto por último em {date} às {time}': 'zuletzt online am {date} um {time}',
 };

@@ -4,11 +4,14 @@ import { AppState, Platform } from 'react-native';
 
 import {
   fetchConversations,
+  fetchPresence,
   hasUndelivered,
   isUnread,
   markDelivered,
+  setPresence,
   type Conversation,
   type Message,
+  type Presence,
 } from '@/lib/messages';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
@@ -19,6 +22,8 @@ type DeleteListener = (id: string) => void;
 type InboxState = {
   conversations: Conversation[] | null;
   unreadCount: number;
+  /** Online / visto por último das pessoas com quem converso, pelo id delas. */
+  presence: Record<string, Presence>;
   refresh: () => Promise<void>;
   /** Recebe cada mensagem nova (de qualquer conversa) assim que chega. */
   onMessage: (listener: Listener) => () => void;
@@ -29,10 +34,14 @@ type InboxState = {
 const InboxContext = createContext<InboxState>({
   conversations: null,
   unreadCount: 0,
+  presence: {},
   refresh: async () => {},
   onMessage: () => () => {},
   onDeleted: () => () => {},
 });
+
+/** De quanto em quanto tempo o app avisa que continua aberto. O servidor espera até 90 s. */
+const HEARTBEAT_MS = 30000;
 
 /** Rede de segurança: com o app aberto, confere as conversas de tempos em tempos. */
 const POLL_MS = 15000;
@@ -50,6 +59,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const me = session?.user.id;
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
+  const [presence, setPresence_] = useState<Record<string, Presence>>({});
   const listeners = useRef(new Set<Listener>());
   const deleteListeners = useRef(new Set<DeleteListener>());
 
@@ -66,6 +76,12 @@ export function InboxProvider({ children }: { children: ReactNode }) {
       if (request === requests.current) setConversations(list);
       // Buscou, então chegou: quem enviou passa a ver "recebida".
       if (me && list.some((c) => hasUndelivered(c, me))) markDelivered().catch(() => {});
+      // Junto com a lista, quem está online agora.
+      if (me) {
+        const others = list.map((c) => (c.user_a === me ? c.user_b : c.user_a));
+        const map = await fetchPresence(others);
+        if (request === requests.current) setPresence_(map);
+      }
     } catch {
       // Sem conexão: mantém o que já tinha.
     }
@@ -117,6 +133,28 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     };
   }, [me, refresh, generation]);
 
+  // Presença: avisa que o app está aberto, de tempos em tempos, e avisa ao sair da tela.
+  useEffect(() => {
+    if (!me) return;
+    if (AppState.currentState === 'active') setPresence(true);
+    const beat = setInterval(() => {
+      if (AppState.currentState === 'active') setPresence(true);
+    }, HEARTBEAT_MS);
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setPresence(true);
+      // "inactive" é só passagem (central de notificações, pedido de permissão): não conta como sair.
+      else if (state === 'background') setPresence(false);
+    });
+    // No navegador, fechar a aba é o equivalente a sair.
+    const leave = () => setPresence(false);
+    if (Platform.OS === 'web') window.addEventListener('pagehide', leave);
+    return () => {
+      clearInterval(beat);
+      appState.remove();
+      if (Platform.OS === 'web') window.removeEventListener('pagehide', leave);
+    };
+  }, [me]);
+
   const onMessage = useCallback((listener: Listener) => {
     listeners.current.add(listener);
     return () => {
@@ -133,7 +171,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
 
   const unreadCount = me ? (conversations ?? []).filter((c) => isUnread(c, me)).length : 0;
 
-  return <InboxContext value={{ conversations, unreadCount, refresh, onMessage, onDeleted }}>{children}</InboxContext>;
+  return <InboxContext value={{ conversations, unreadCount, presence, refresh, onMessage, onDeleted }}>{children}</InboxContext>;
 }
 
 export function useInbox() {
