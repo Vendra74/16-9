@@ -244,7 +244,8 @@ export async function fetchBlocked() {
 }
 
 export async function markRead(conversationId: string) {
-  await supabase.rpc('mark_conversation_read', { conv: conversationId });
+  const { error } = await supabase.rpc('mark_conversation_read', { conv: conversationId });
+  if (error) throw error;
 }
 
 export async function searchPeople(query: string, me: string) {

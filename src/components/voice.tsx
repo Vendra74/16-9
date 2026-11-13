@@ -20,6 +20,13 @@ import { MAX_VOICE_SECONDS, type Message } from '@/lib/messages';
 /** Voz não precisa de estéreo nem de taxa alta: arquivo pequeno, envio rápido. */
 const RECORDING = { ...RecordingPresets.HIGH_QUALITY, numberOfChannels: 1, bitRate: 64000 };
 
+/** Tocar: alto-falante, mesmo com a chave de silêncio ligada, sem dividir a saída com outro som. */
+const PLAYBACK = { allowsRecording: false, playsInSilentMode: true, interruptionMode: 'doNotMix' } as const;
+const CAPTURE = { ...PLAYBACK, allowsRecording: true } as const;
+
+/** Sem começar a tocar neste tempo, avisa em vez de deixar o balão mudo. */
+const LOAD_TIMEOUT_MS = 15000;
+
 /** Gravações mais curtas que isto são toque sem querer. */
 const MIN_SECONDS = 1;
 
@@ -63,7 +70,7 @@ export function VoiceRecorder({
           onCancel();
           return;
         }
-        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        await setAudioModeAsync(CAPTURE);
         await recorder.prepareToRecordAsync();
         if (active) recorder.record();
       } catch {
@@ -72,6 +79,9 @@ export function VoiceRecorder({
     })();
     return () => {
       active = false;
+      // Saiu da barra por qualquer caminho (trocou de conversa, fechou a tela):
+      // o aparelho não pode ficar em modo de gravação, que toca baixo, pelo fone do ouvido.
+      setAudioModeAsync(PLAYBACK).catch(() => {});
     };
     // Só na montagem: a barra existe enquanto durar esta gravação.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,7 +94,7 @@ export function VoiceRecorder({
     } catch {
       // Já parada.
     }
-    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    await setAudioModeAsync(PLAYBACK).catch(() => {});
   }
 
   async function finish(send: boolean) {
@@ -212,15 +222,35 @@ function Player({
   mine: boolean;
   onStop: () => void;
 }) {
-  const player = useAudioPlayer(url, { updateInterval: 200 });
+  // Baixa o arquivo antes de tocar: mais confiável que tocar direto do endereço temporário.
+  const player = useAudioPlayer(url, { updateInterval: 200, downloadFirst: true });
   const status = useAudioPlayerStatus(player);
+  const loaded = status.isLoaded;
+  const started = status.playing || status.currentTime > 0;
 
+  // Só manda tocar com o arquivo carregado e o aparelho já em modo de tocar.
   useEffect(() => {
-    // Toca mesmo com a chave de silêncio do iPhone ligada: a pessoa pediu para ouvir.
-    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true })
+    if (!loaded) return;
+    let active = true;
+    setAudioModeAsync(PLAYBACK)
       .catch(() => {})
-      .then(() => player.play());
-  }, [player]);
+      .then(() => {
+        if (active) player.play();
+      });
+    return () => {
+      active = false;
+    };
+  }, [player, loaded]);
+
+  // Não começou a tocar: avisa, em vez de ficar parado sem som.
+  useEffect(() => {
+    if (started) return;
+    const timer = setTimeout(() => {
+      Alert.alert(t('Não foi possível tocar o áudio.'), t('Confira a internet e tente de novo.'));
+      onStop();
+    }, LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [started, onStop]);
 
   // Terminou: o balão volta ao estado parado.
   useEffect(() => {
