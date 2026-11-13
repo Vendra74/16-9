@@ -7,6 +7,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -49,6 +50,8 @@ export function VoiceRecorder({
   onSend: (uri: string, seconds: number) => void;
   onCancel: () => void;
 }) {
+  // Quem está falando não toca na tela: sem isto, o aparelho bloqueia no meio da gravação.
+  useKeepAwake('voice');
   const recorder = useAudioRecorder(RECORDING);
   const state = useAudioRecorderState(recorder, 200);
   const [failed, setFailed] = useState(false);
@@ -248,6 +251,8 @@ function Player({
   mine: boolean;
   onStop: () => void;
 }) {
+  // Ouvindo, a pessoa também não toca na tela: não deixa bloquear no meio do áudio.
+  useKeepAwake('voice');
   // Baixa o arquivo antes de tocar: mais confiável que tocar direto do endereço temporário.
   const player = useAudioPlayer(url, { updateInterval: 200, downloadFirst: true });
   const status = useAudioPlayerStatus(player);
