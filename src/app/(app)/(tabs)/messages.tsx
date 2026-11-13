@@ -19,7 +19,7 @@ import { Button, FormMessage } from '@/components/form';
 import { VoiceBubble, VoiceRecorder } from '@/components/voice';
 import { MediaThumb, MediaViewer, pickMedia } from '@/components/message-media';
 import { PeoplePicker } from '@/components/people-picker';
-import { MicIcon, MoreIcon, PublishIcon, SendIcon } from '@/components/rail-icons';
+import { MicIcon, MoreIcon, PublishIcon, ReceiptIcon, SendIcon } from '@/components/rail-icons';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { useInbox } from '@/lib/inbox';
 import {
@@ -32,6 +32,7 @@ import {
   markRead,
   otherPerson,
   previewText,
+  receiptOf,
   sendMedia,
   sendVoice,
   sendMessage,
@@ -39,6 +40,7 @@ import {
   unblockUser,
   type Conversation,
   type Message,
+  type Receipt,
 } from '@/lib/messages';
 import { askModeration } from '@/lib/moderation';
 import { postImageUrl } from '@/lib/posts';
@@ -55,6 +57,22 @@ function timeLabel(iso: string | null) {
     return d.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
   }
   return d.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' });
+}
+
+/** Azul de "lida": um tom para o balão claro, outro para o fundo escuro da lista. */
+const READ_ON_LIGHT = '#0A6CFF';
+const READ_ON_DARK = '#4DA3FF';
+
+/** As setinhas de uma mensagem minha: enviada, recebida, lida. */
+function ReceiptMark({ receipt, onDark }: { receipt: Receipt; onDark?: boolean }) {
+  const label = receipt === 'read' ? t('Lida') : receipt === 'delivered' ? t('Recebida') : t('Enviada');
+  const idle = onDark ? Colors.textMuted : '#5E6066';
+  const read = onDark ? READ_ON_DARK : READ_ON_LIGHT;
+  return (
+    <View accessible accessibilityRole="image" accessibilityLabel={label}>
+      <ReceiptIcon color={receipt === 'read' ? read : idle} both={receipt !== 'sent'} size={onDark ? 13 : 12} />
+    </View>
+  );
 }
 
 /** Mensagens: conversas à esquerda, a conversa aberta à direita. */
@@ -119,10 +137,15 @@ export default function MessagesScreen() {
                       </Text>
                       <Text style={styles.itemTime}>{timeLabel(item.last_message_at)}</Text>
                     </View>
-                    <Text style={[styles.itemPreview, unread && styles.unreadPreview]} numberOfLines={1}>
-                      {item.last_sender === me ? t('Você: ') : ''}
-                      {previewText(item.last_message)}
-                    </Text>
+                    <View style={styles.itemBottom}>
+                      {item.last_sender === me && item.last_message_at ? (
+                        <ReceiptMark receipt={receiptOf(item.last_message_at, item, me)} onDark />
+                      ) : null}
+                      <Text style={[styles.itemPreview, unread && styles.unreadPreview]} numberOfLines={1}>
+                        {item.last_sender === me ? t('Você: ') : ''}
+                        {previewText(item.last_message)}
+                      </Text>
+                    </View>
                   </View>
                   {unread ? <View style={styles.dot} /> : null}
                 </Pressable>
@@ -354,6 +377,8 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
     return <View style={styles.center}>{error ? <FormMessage text={error} /> : <ApertureLoader size={32} />}</View>;
   }
 
+  // A lista de conversas é atualizada o tempo todo: é dela que vêm "recebida" e "lida".
+  const receipts = listed ?? conversation;
   const person = otherPerson(conversation, me);
   const name = person?.display_name || person?.username || t('Alguém');
 
@@ -382,10 +407,12 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
         inverted
         keyExtractor={(m) => m.id}
         keyboardShouldPersistTaps="handled"
+        extraData={receipts}
         renderItem={({ item }) => (
           <Bubble
             message={item}
             mine={item.sender_id === me}
+            receipt={item.sender_id === me ? receiptOf(item.created_at, receipts, me) : null}
             playing={playing === item.id}
             // Gravando, não toca: os dois ao mesmo tempo estragam a gravação.
             onPlay={(id) => !recording && setPlaying(id)}
@@ -461,6 +488,7 @@ function Chat({ conversationId, me }: { conversationId: string; me: string }) {
 function Bubble({
   message,
   mine,
+  receipt,
   playing,
   onPlay,
   onOpen,
@@ -468,6 +496,8 @@ function Bubble({
 }: {
   message: Message;
   mine: boolean;
+  /** Só nas minhas mensagens: enviada, recebida ou lida. */
+  receipt: Receipt | null;
   playing: boolean;
   onPlay: (id: string | null) => void;
   onOpen: () => void;
@@ -496,7 +526,10 @@ function Bubble({
         {message.image_path ? <MediaThumb message={message} onOpen={onOpen} /> : null}
         {message.kind === 'audio' ? <VoiceBubble message={message} mine={mine} active={playing} onPlay={onPlay} /> : null}
         {message.body ? <Text style={[styles.bubbleText, mine && styles.textMine]}>{message.body}</Text> : null}
-        <Text style={[styles.bubbleTime, mine && styles.timeMine]}>{timeLabel(message.created_at)}</Text>
+        <View style={styles.bubbleFoot}>
+          <Text style={[styles.bubbleTime, mine && styles.timeMine]}>{timeLabel(message.created_at)}</Text>
+          {receipt ? <ReceiptMark receipt={receipt} /> : null}
+        </View>
       </Pressable>
     </View>
   );
@@ -568,6 +601,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   itemPreview: {
+    flexShrink: 1,
     color: Colors.textSecondary,
     fontSize: 12,
   },
@@ -656,10 +690,20 @@ const styles = StyleSheet.create({
   textMine: {
     color: Colors.background,
   },
+  bubbleFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 3,
+  },
   bubbleTime: {
     color: Colors.textMuted,
     fontSize: 10,
-    alignSelf: 'flex-end',
+  },
+  itemBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   timeMine: {
     color: '#5E6066',

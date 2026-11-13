@@ -126,3 +126,24 @@ export function PlayIcon({ color, size = 22, playing = false }: IconProps & { pl
     </Svg>
   );
 }
+
+/**
+ * Marcador de uma mensagem enviada. Uma seta para cima: saiu daqui. Com a
+ * seta para baixo ao lado: chegou do outro lado. A cor (azul) diz que foi lida.
+ */
+export function ReceiptIcon({ color, size = 14, both }: IconProps & { both: boolean }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d={both ? 'M8 20V5M3.5 9.5 8 5l4.5 4.5' : 'M12 20V5M7.5 9.5 12 5l4.5 4.5'}
+        stroke={color}
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {both ? (
+        <Path d="M17 4v15M12.5 14.5 17 19l4.5-4.5" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+      ) : null}
+    </Svg>
+  );
+}

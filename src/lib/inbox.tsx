@@ -2,7 +2,14 @@ import * as Notifications from 'expo-notifications';
 import { createContext, use, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { fetchConversations, isUnread, type Conversation, type Message } from '@/lib/messages';
+import {
+  fetchConversations,
+  hasUndelivered,
+  isUnread,
+  markDelivered,
+  type Conversation,
+  type Message,
+} from '@/lib/messages';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -57,10 +64,12 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     try {
       const list = await fetchConversations();
       if (request === requests.current) setConversations(list);
+      // Buscou, então chegou: quem enviou passa a ver "recebida".
+      if (me && list.some((c) => hasUndelivered(c, me))) markDelivered().catch(() => {});
     } catch {
       // Sem conexão: mantém o que já tinha.
     }
-  }, []);
+  }, [me]);
 
   useEffect(() => {
     if (!me) return;
