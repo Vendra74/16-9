@@ -319,4 +319,8 @@ export const fr: Record<string, string> = {
   'Enviada': 'Envoyé',
   'Recebida': 'Reçu',
   'Lida': 'Lu',
+  'online': 'en ligne',
+  'visto por último às {time}': 'vu(e) à {time}',
+  'visto por último ontem às {time}': 'vu(e) hier à {time}',
+  'visto por último em {date} às {time}': 'vu(e) le {date} à {time}',
 };

@@ -105,6 +105,30 @@ export async function markDelivered() {
   if (error) throw error;
 }
 
+/** Se a pessoa está com o app aberto agora e, se não, quando esteve pela última vez. */
+export type Presence = { online: boolean; last_seen_at: string };
+
+/** Avisa que este aparelho está (ou deixou de estar) com o app aberto. Falha em silêncio. */
+export async function setPresence(online: boolean) {
+  try {
+    await supabase.rpc('set_presence', { is_online: online });
+  } catch {
+    // Sem conexão: o servidor considera offline sozinho depois de 90 s.
+  }
+}
+
+/** O estado das pessoas com quem converso. Vazio em bancos ainda sem a função. */
+export async function fetchPresence(ids: string[]) {
+  const map: Record<string, Presence> = {};
+  if (ids.length === 0) return map;
+  const { data, error } = await supabase.rpc('presence_of', { ids });
+  if (error || !Array.isArray(data)) return map;
+  for (const row of data as ({ user_id: string } & Presence)[]) {
+    map[row.user_id] = { online: row.online, last_seen_at: row.last_seen_at };
+  }
+  return map;
+}
+
 export async function fetchConversations() {
   const { data, error } = await supabase
     .from('conversations')

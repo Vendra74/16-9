@@ -17,7 +17,7 @@ import { settingsLine } from '@/lib/exif';
 import { fetchCounts, type FollowKind, type ProfileCounts } from '@/lib/follows';
 import { MAX_LINKS, normalizeLink } from '@/lib/links';
 import { cropAndResize, publicUrl, uploadJpeg } from '@/lib/images';
-import { fetchBlocked, unblockUser, type MiniProfile } from '@/lib/messages';
+import { fetchBlocked, setPresence, unblockUser, type MiniProfile } from '@/lib/messages';
 import { deletePost, fetchUserPosts, postImageUrl, type FeedPost } from '@/lib/posts';
 import {
   fetchProfile,
@@ -178,6 +178,8 @@ export default function ProfileScreen() {
           />
           <Button variant="ghost" title={t('Sair')} onPress={async () => {
               await unregisterFromPush();
+              // Enquanto ainda há sessão: deixa de aparecer online na hora.
+              await setPresence(false);
               await supabase.auth.signOut();
             }} />
         </View>
