@@ -20,6 +20,9 @@ export type Conversation = {
   last_sender: string | null;
   a_read_at: string;
   b_read_at: string;
+  /** Quando o app de cada pessoa buscou as mensagens pela última vez. Ausente em bancos ainda sem a coluna. */
+  a_delivered_at?: string;
+  b_delivered_at?: string;
   a: MiniProfile | null;
   b: MiniProfile | null;
 };
@@ -54,8 +57,9 @@ export type Message = {
 };
 
 const PROFILE = 'id, username, display_name, avatar_url';
+// `*` de propósito, como em MESSAGE: colunas novas não quebram a leitura num banco que ainda não as tem.
 const CONVERSATION =
-  `id, user_a, user_b, last_message_at, last_message, last_sender, a_read_at, b_read_at, ` +
+  `*, ` +
   `a:profiles!conversations_user_a_fkey(${PROFILE}), b:profiles!conversations_user_b_fkey(${PROFILE})`;
 // `*` de propósito: colunas novas (como audio_path) não quebram a leitura num banco que ainda não as tem.
 const MESSAGE =
@@ -72,6 +76,33 @@ export function isUnread(c: Conversation, me: string) {
   if (!c.last_message_at || c.last_sender === me) return false;
   const readAt = c.user_a === me ? c.a_read_at : c.b_read_at;
   return new Date(c.last_message_at) > new Date(readAt);
+}
+
+/** O estado de uma mensagem enviada: saiu daqui, chegou no aparelho da outra pessoa, foi lida. */
+export type Receipt = 'sent' | 'delivered' | 'read';
+
+/** Em que ponto está uma mensagem minha, pelo que a conversa sabe da outra pessoa. */
+export function receiptOf(sentAt: string, c: Conversation, me: string): Receipt {
+  const mineIsA = c.user_a === me;
+  const sent = new Date(sentAt).getTime();
+  const readAt = mineIsA ? c.b_read_at : c.a_read_at;
+  if (readAt && new Date(readAt).getTime() >= sent) return 'read';
+  const deliveredAt = mineIsA ? c.b_delivered_at : c.a_delivered_at;
+  if (deliveredAt && new Date(deliveredAt).getTime() >= sent) return 'delivered';
+  return 'sent';
+}
+
+/** Tem mensagem da outra pessoa que este aparelho ainda não avisou ter recebido? */
+export function hasUndelivered(c: Conversation, me: string) {
+  const deliveredAt = c.user_a === me ? c.a_delivered_at : c.b_delivered_at;
+  if (!deliveredAt || !c.last_message_at || c.last_sender === me) return false;
+  return new Date(c.last_message_at) > new Date(deliveredAt);
+}
+
+/** Avisa que as mensagens chegaram a este aparelho (a outra pessoa vê "recebida"). */
+export async function markDelivered() {
+  const { error } = await supabase.rpc('mark_conversations_delivered');
+  if (error) throw error;
 }
 
 export async function fetchConversations() {

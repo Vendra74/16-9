@@ -316,4 +316,7 @@ export const es: Record<string, string> = {
   'Encontre gente no Explorar e toque em Seguir no perfil.': 'Encuentra gente en Explorar y toca Seguir en su perfil.',
   'Não ouvimos nada': 'No oímos nada',
   'A gravação ficou sem som e não foi enviada. Tente de novo.': 'La grabación quedó sin sonido y no se envió. Inténtalo de nuevo.',
+  'Enviada': 'Enviado',
+  'Recebida': 'Recibido',
+  'Lida': 'Leído',
 };
