@@ -20,6 +20,19 @@ export type FeedPost = Gear & {
   /** Endereço de streaming (HLS). Nos vídeos, image_path é a capa. */
   video_url: string | null;
   duration: number | null;
+  /**
+   * Música de fundo. Faixa da biblioteca (music_url) ou arquivo próprio (music_path).
+   * Opcionais: chegam vazias em banco sem a migração da música.
+   */
+  music_url?: string | null;
+  music_path?: string | null;
+  music_title?: string;
+  music_artist?: string;
+  /** Segundo da música em que o post começa. */
+  music_start?: number;
+  /** Volumes de 0 a 1: da música e do som original do vídeo. */
+  music_volume?: number;
+  video_volume?: number;
   like_count: number;
   comment_count: number;
   /** Só traz a curtida de quem está logado (regra do banco): vazio = não curtiu. */
@@ -32,8 +45,10 @@ export type FeedPost = Gear & {
   } | null;
 };
 
+// "*" traz as colunas novas (como as da música) quando existem, sem quebrar
+// a leitura num banco que ainda não recebeu a migração.
 const COLUMNS =
-  'id, user_id, image_path, extra_images, width, height, title, location, camera, lens, focal_length, aperture, shutter, iso, created_at, kind, status, video_url, duration, ' +
+  '*, ' +
   'like_count, comment_count, my_like:likes(user_id), author:profiles!posts_user_id_fkey(username, display_name, specialty, avatar_url)';
 
 export function postImageUrl(post: Pick<FeedPost, 'image_path'>) {
@@ -126,6 +141,13 @@ export type NewPost = Gear & {
   location: string;
   kind?: 'photo' | 'video';
   mux_upload_id?: string;
+  music_url?: string;
+  music_path?: string;
+  music_title?: string;
+  music_artist?: string;
+  music_start?: number;
+  music_volume?: number;
+  video_volume?: number;
 };
 
 /** Cria o post e devolve o id. */
@@ -135,11 +157,12 @@ export async function createPost(post: NewPost) {
   return data.id;
 }
 
-export async function deletePost(post: Pick<FeedPost, 'id' | 'image_path' | 'kind'> & { extra_images?: string[] }) {
+export async function deletePost(post: Pick<FeedPost, 'id' | 'image_path' | 'kind'> & { extra_images?: string[]; music_path?: string | null }) {
   // O vídeo sai do Mux primeiro; se falhar, o post continua e dá para tentar de novo.
   if (post.kind === 'video') await releaseVideo(post.id);
   const { error } = await supabase.from('posts').delete().eq('id', post.id);
   if (error) throw error;
   // A imagem sai depois; se falhar, só fica um arquivo órfão no Storage.
   await supabase.storage.from('posts').remove([post.image_path, ...(post.extra_images ?? [])]);
+  if (post.music_path) await supabase.storage.from('music').remove([post.music_path]);
 }
