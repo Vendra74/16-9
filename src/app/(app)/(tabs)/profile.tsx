@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ import {
   type Profile,
 } from '@/lib/profile';
 import { deleteAccount } from '@/lib/account';
+import { amITeam } from '@/lib/admin';
 import { openPrivacy, openTerms } from '@/lib/legal';
 import { unregisterFromPush } from '@/lib/push';
 import { useSession } from '@/lib/session';
@@ -50,6 +51,12 @@ export default function ProfileScreen() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [counts, setCounts] = useState<ProfileCounts | null>(null);
   const [list, setList] = useState<FollowKind | null>(null);
+  const [isTeam, setIsTeam] = useState(false);
+
+  // Só a equipe do 16:9 vê o botão do painel.
+  useEffect(() => {
+    if (userId) amITeam().then(setIsTeam);
+  }, [userId]);
 
   const loadCounts = useCallback(() => {
     if (userId) fetchCounts(userId).then(setCounts).catch(() => {});
@@ -177,6 +184,9 @@ export default function ProfileScreen() {
             title={t('Conta e privacidade')}
             onPress={() => setPanel(panel === 'account' ? 'works' : 'account')}
           />
+          {isTeam ? (
+            <Button variant="ghost" title={t('Painel do administrador')} onPress={() => router.push('/admin')} />
+          ) : null}
           <Button variant="ghost" title={t('Sair')} onPress={async () => {
               await unregisterFromPush();
               // Enquanto ainda há sessão: deixa de aparecer online na hora.
