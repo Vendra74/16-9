@@ -136,7 +136,11 @@ export default function AdminScreen() {
           return (
             <Pressable
               key={item.key}
-              onPress={() => setSection(item.key)}
+              onPress={() => {
+                setSection(item.key);
+                // Os números se atualizam toda vez que a Visão geral é aberta.
+                if (item.key === 'overview') loadStats();
+              }}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               style={({ pressed }) => [styles.menuItem, active && styles.menuItemActive, pressed && styles.pressed]}>
