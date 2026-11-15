@@ -1,17 +1,20 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
 import { CropFrame } from '@/components/crop-frame';
+import { MusicPanel } from '@/components/music-panel';
+import { MusicIcon } from '@/components/rail-icons';
 import { useRailWidth } from '@/components/side-rail';
 import { Button, Field, FormMessage } from '@/components/form';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { EMPTY_GEAR, gearFromExif, type Gear } from '@/lib/exif';
 import { cropAndResize, uploadJpeg, type CropRect } from '@/lib/images';
+import { musicColumns, musicLine, removeMusicFile, type ChosenMusic } from '@/lib/music';
 import { createPost, deletePost, MAX_PHOTOS } from '@/lib/posts';
 import { useSession } from '@/lib/session';
 import {
@@ -60,6 +63,10 @@ export default function PublishScreen() {
   const [opening, setOpening] = useState(false);
   /** Instante do vídeo que vira a capa. */
   const [cover, setCover] = useState(DEFAULT_COVER_SECONDS);
+  /** Música de fundo (opcional) e o volume do som original do vídeo. */
+  const [music, setMusic] = useState<ChosenMusic | null>(null);
+  const [videoVolume, setVideoVolume] = useState(1);
+  const [musicOpen, setMusicOpen] = useState(false);
   /** O enquadramento de cada foto, pelo endereço dela. */
   const crops = useRef<Record<string, CropRect>>({});
   const onCropChange = useCallback((uri: string, rect: CropRect) => {
@@ -202,6 +209,8 @@ export default function PublishScreen() {
     setGear(EMPTY_GEAR);
     setTitle('');
     setLocation('');
+    setMusic(null);
+    setVideoVolume(1);
     crops.current = {};
   }
 
@@ -233,13 +242,18 @@ export default function PublishScreen() {
         }
       }
       if (!image || !path) return;
+      if (music && !music.url) setStep(t('Enviando a música…'));
+      const soundtrack = await musicColumns(music, session.user.id);
       const upload = video ? await requestUpload() : null;
+      // Se o post não for criado, o arquivo de música enviado não fica órfão.
       const postId = await createPost({
         image_path: path,
         width: image.width,
         height: image.height,
         ...(upload ? { kind: 'video' as const, mux_upload_id: upload.upload_id } : {}),
         ...(extra_images.length > 0 ? { extra_images } : {}),
+        ...soundtrack,
+        ...(video && videoVolume !== 1 ? { video_volume: videoVolume } : {}),
         title: title.trim(),
         location: location.trim(),
         camera: gear.camera.trim(),
@@ -248,6 +262,9 @@ export default function PublishScreen() {
         aperture: gear.aperture.trim(),
         shutter: gear.shutter.trim(),
         iso: gear.iso.trim(),
+      }).catch(async (e) => {
+        await removeMusicFile(soundtrack.music_path).catch(() => {});
+        throw e;
       });
       if (upload && picked) {
         // O post já existe (invisível para os outros) e só aparece quando o vídeo ficar pronto.
@@ -255,7 +272,7 @@ export default function PublishScreen() {
           setStep(t('Enviando o vídeo… {percent}%', { percent: 0 }));
           await uploadVideo(upload.url, picked.uri, (f) => setStep(t('Enviando o vídeo… {percent}%', { percent: Math.round(f * 100) })));
         } catch (e) {
-          await deletePost({ id: postId, image_path: path, kind: 'video' }).catch(() => {});
+          await deletePost({ id: postId, image_path: path, kind: 'video', music_path: soundtrack.music_path }).catch(() => {});
           throw e;
         }
       }
@@ -310,7 +327,16 @@ export default function PublishScreen() {
     <View style={[styles.screen, { paddingRight: insets.right }]}>
       <View style={styles.preview}>
         {frameWidth <= 0 ? null : picked ? (
-          <VideoPreview key={picked.uri} uri={picked.uri} width={frameWidth} cover={cover} onCover={setCover} disabled={busy} />
+          <VideoPreview
+            key={picked.uri}
+            uri={picked.uri}
+            width={frameWidth}
+            cover={cover}
+            onCover={setCover}
+            disabled={busy}
+            volume={videoVolume}
+            paused={musicOpen}
+          />
         ) : (
           <>
             {/* Todas ficam montadas, para cada foto guardar o seu enquadramento; só a atual aparece. */}
@@ -370,6 +396,27 @@ export default function PublishScreen() {
         <Field label={t('Título')} placeholder={t('Opcional')} value={title} onChangeText={setTitle} maxLength={120} />
         <Field label={t('Local')} placeholder={t('Cidade, lugar')} value={location} onChangeText={setLocation} maxLength={120} />
 
+        <Pressable
+          style={styles.music}
+          onPress={() => setMusicOpen(true)}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={music ? t('Música: {title}. Trocar', { title: musicLine(music) }) : t('Escolher música de fundo')}>
+          <MusicIcon color={Colors.text} />
+          <View style={styles.musicText}>
+            <Text style={styles.musicTitle} numberOfLines={1}>
+              {music ? musicLine(music) : t('Música de fundo')}
+            </Text>
+            <Text style={styles.musicMeta} numberOfLines={1}>
+              {music
+                ? picked
+                  ? t('Som do vídeo: {volume}', { volume: videoVolume === 0 ? t('mudo') : `${Math.round(videoVolume * 100)}%` })
+                  : t('Toque para trocar ou tirar')
+                : t('Opcional · biblioteca livre ou música sua')}
+            </Text>
+          </View>
+        </Pressable>
+
         <Text style={styles.section}>{t('Ficha técnica')}</Text>
         <Field label={t('Câmera')} placeholder="Sony A7 IV" value={gear.camera} onChangeText={set('camera')} maxLength={80} />
         <Field label={t('Lente')} placeholder="24-70mm f/2.8" value={gear.lens} onChangeText={set('lens')} maxLength={80} />
@@ -400,6 +447,16 @@ export default function PublishScreen() {
           <Button title={t('Publicar')} onPress={publish} />
         )}
       </ScrollView>
+
+      <MusicPanel
+        visible={musicOpen}
+        music={music}
+        onChange={setMusic}
+        isVideo={picked !== null}
+        videoVolume={videoVolume}
+        onVideoVolume={setVideoVolume}
+        onClose={() => setMusicOpen(false)}
+      />
     </View>
   );
 }
@@ -429,16 +486,31 @@ function VideoPreview({
   cover,
   onCover,
   disabled,
+  volume,
+  paused,
 }: {
   uri: string;
   width: number;
   cover: number;
   onCover: (seconds: number) => void;
   disabled: boolean;
+  /** Volume do som original, como vai ficar no post. */
+  volume: number;
+  /** Com o painel de música aberto, o vídeo para (a prévia da música toca sozinha). */
+  paused: boolean;
 }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
   });
+  // O player do expo-video é controlado por atribuição direta; é a API dele.
+  /* eslint-disable react-hooks/immutability */
+  useEffect(() => {
+    player.volume = volume;
+  }, [player, volume]);
+  /* eslint-enable react-hooks/immutability */
+  useEffect(() => {
+    if (paused) player.pause();
+  }, [player, paused]);
   const chosen = cover !== DEFAULT_COVER_SECONDS;
   return (
     <View>
@@ -468,6 +540,28 @@ function VideoPreview({
 }
 
 const styles = StyleSheet.create({
+  music: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  musicText: {
+    flex: 1,
+  },
+  musicTitle: {
+    color: Colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  musicMeta: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+  },
   hidden: {
     display: 'none',
   },

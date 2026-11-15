@@ -1,0 +1,58 @@
+[
+  {
+    "id": "horizonte",
+    "title": "Horizonte",
+    "mood": "epico",
+    "duration": 73,
+    "file": "horizonte.m4a"
+  },
+  {
+    "id": "mare-mansa",
+    "title": "Maré Mansa",
+    "mood": "calmo",
+    "duration": 78,
+    "file": "mare-mansa.m4a"
+  },
+  {
+    "id": "sombra",
+    "title": "Sombra",
+    "mood": "suspense",
+    "duration": 72,
+    "file": "sombra.m4a"
+  },
+  {
+    "id": "dia-claro",
+    "title": "Dia Claro",
+    "mood": "alegre",
+    "duration": 72,
+    "file": "dia-claro.m4a"
+  },
+  {
+    "id": "cartas",
+    "title": "Cartas",
+    "mood": "melancolico",
+    "duration": 85,
+    "file": "cartas.m4a"
+  },
+  {
+    "id": "cafe",
+    "title": "Café",
+    "mood": "lofi",
+    "duration": 77,
+    "file": "cafe.m4a"
+  },
+  {
+    "id": "neon",
+    "title": "Neon",
+    "mood": "eletronico",
+    "duration": 68,
+    "file": "neon.m4a"
+  },
+  {
+    "id": "terra",
+    "title": "Terra",
+    "mood": "documentario",
+    "duration": 68,
+    "file": "terra.m4a"
+  }
+]

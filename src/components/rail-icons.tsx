@@ -180,3 +180,14 @@ export function ReplyIcon({ color, size = 14 }: IconProps) {
     </Svg>
   );
 }
+
+/** Música: uma colcheia. */
+export function MusicIcon({ color, size = 18 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 17.5V5.5l10-2v12" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={6.5} cy={17.5} r={2.5} stroke={color} strokeWidth={1.8} />
+      <Circle cx={16.5} cy={15.5} r={2.5} stroke={color} strokeWidth={1.8} />
+    </Svg>
+  );
+}

@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,9 +7,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
 import { ClapperButton } from '@/components/clapper-button';
-import { CommentIcon, MessagesIcon, MoreIcon, SendIcon, SoundIcon } from '@/components/rail-icons';
+import { CommentIcon, MessagesIcon, MoreIcon, MusicIcon, SendIcon, SoundIcon } from '@/components/rail-icons';
 import { Colors, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
+import { clamp01, musicLine, postMusicUrl } from '@/lib/music';
 import { postImageUrl, postImageUrls, type FeedPost } from '@/lib/posts';
 import { t } from '@/lib/i18n';
 
@@ -49,7 +51,12 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
   const gear = [post.camera, post.lens, settings].filter(Boolean).join(' · ');
   const isVideo = post.kind === 'video';
   const playable = isVideo && post.status === 'ready' && Boolean(post.video_url);
-  const hasCaption = Boolean(post.title || post.location || gear);
+  const musicUrl = postMusicUrl(post);
+  const song = musicUrl ? musicLine({ title: post.music_title, artist: post.music_artist }) || t('Música') : '';
+  // Vídeo ainda processando não toca nada, nem a música.
+  const ready = !isVideo || playable;
+  const hasSound = playable || (Boolean(musicUrl) && ready);
+  const hasCaption = Boolean(post.title || post.location || gear || song);
 
   return (
     <Pressable style={[styles.frame, { width, height }]} onPress={() => setShowInfo((v) => !v)}>
@@ -96,7 +103,14 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
       ) : null}
 
       {/* A capa fica por baixo; o vídeo só é montado no post que está na tela. */}
-      {playable && active && post.video_url ? <PostVideo uri={post.video_url} muted={muted} width={width} height={height} /> : null}
+      {playable && active && post.video_url ? (
+        <PostVideo uri={post.video_url} muted={muted} volume={musicUrl ? clamp01(post.video_volume ?? 1) : 1} width={width} height={height} />
+      ) : null}
+
+      {/* A música só toca no post da tela e com o som ligado. */}
+      {musicUrl && ready && active && !muted ? (
+        <PostMusic uri={musicUrl} start={post.music_start ?? 0} volume={clamp01(post.music_volume ?? 1)} />
+      ) : null}
 
       {isVideo && !playable ? (
         <View style={styles.loader} pointerEvents="none">
@@ -132,7 +146,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
               </View>
             </Pressable>
             <View style={styles.flex} pointerEvents="none" />
-            {playable ? (
+            {hasSound ? (
               <Pressable
                 onPress={onToggleSound}
                 hitSlop={10}
@@ -153,6 +167,14 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
               {post.title ? <Text style={styles.title}>{post.title}</Text> : null}
               {post.location ? <Text style={styles.meta}>{post.location}</Text> : null}
               {gear ? <Text style={styles.gear}>{gear}</Text> : null}
+              {song ? (
+                <View style={styles.songRow}>
+                  <MusicIcon color={Colors.silver} size={12} />
+                  <Text style={styles.gear} numberOfLines={1}>
+                    {song}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.actions} pointerEvents="box-none">
               <ClapperButton liked={liked} count={post.like_count} onToggle={onLike} onCountPress={onLikers} size={24} />
@@ -183,10 +205,12 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
 }
 
 /** O vídeo do post, em laço. Começa mudo; o som é ligado por quem assiste. */
-function PostVideo({ uri, muted, width, height }: { uri: string; muted: boolean; width: number; height: number }) {
+function PostVideo({ uri, muted, volume, width, height }: { uri: string; muted: boolean; volume: number; width: number; height: number }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = muted;
+    // Com música de fundo, o som original fica no volume que quem publicou escolheu.
+    p.volume = volume;
     // Mudo, não interrompe a música que a pessoa esteja ouvindo.
     p.audioMixingMode = muted ? 'mixWithOthers' : 'auto';
   });
@@ -201,7 +225,8 @@ function PostVideo({ uri, muted, width, height }: { uri: string; muted: boolean;
   useEffect(() => {
     player.muted = muted;
     player.audioMixingMode = muted ? 'mixWithOthers' : 'auto';
-  }, [player, muted]);
+    player.volume = volume;
+  }, [player, muted, volume]);
   /* eslint-enable react-hooks/immutability */
 
   return (
@@ -216,6 +241,50 @@ function PostVideo({ uri, muted, width, height }: { uri: string; muted: boolean;
   );
 }
 
+const MUSIC_MODE = { allowsRecording: false, playsInSilentMode: true, interruptionMode: 'doNotMix' } as const;
+
+/**
+ * A música de fundo, em laço, a partir do trecho escolhido por quem publicou.
+ * Só existe enquanto o post está na tela com o som ligado: sair dele para a música.
+ */
+function PostMusic({ uri, start, volume }: { uri: string; start: number; volume: number }) {
+  const player = useAudioPlayer(uri, { updateInterval: 1000 });
+  const status = useAudioPlayerStatus(player);
+  const loaded = status.isLoaded;
+
+  // O player do expo-audio é controlado por atribuição direta; é a API dele.
+  /* eslint-disable react-hooks/immutability */
+  useEffect(() => {
+    player.volume = volume;
+  }, [player, volume]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    let active = true;
+    setAudioModeAsync(MUSIC_MODE)
+      .catch(() => {})
+      .then(() => (start > 0 ? player.seekTo(start).catch(() => {}) : undefined))
+      .then(() => {
+        if (active) player.play();
+      });
+    return () => {
+      active = false;
+    };
+  }, [player, loaded, start]);
+  /* eslint-enable react-hooks/immutability */
+
+  // Laço feito aqui: ao terminar, volta ao trecho escolhido (o laço do player voltaria ao começo do arquivo).
+  useEffect(() => {
+    if (!status.didJustFinish) return;
+    player
+      .seekTo(start)
+      .catch(() => {})
+      .then(() => player.play());
+  }, [player, status.didJustFinish, start]);
+
+  return null;
+}
+
 const shadow = {
   textShadowColor: 'rgba(0,0,0,0.6)',
   textShadowOffset: { width: 0, height: 1 },
@@ -223,6 +292,12 @@ const shadow = {
 } as const;
 
 const styles = StyleSheet.create({
+  songRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
   counter: {
     position: 'absolute',
     top: Spacing.sm,

@@ -63,6 +63,11 @@ export function uploadVoice(folder: string, uri: string) {
     : upload('messages', folder, uri, 'm4a', 'audio/mp4');
 }
 
+/** Envia um arquivo de música da própria pessoa para `music/<id>/` e devolve o caminho. */
+export function uploadMusicFile(folder: string, uri: string, extension: string, contentType: string) {
+  return upload('music', folder, uri, extension, contentType);
+}
+
 /** Endereços temporários das imagens e dos áudios das conversas (bucket privado), guardados enquanto valem. */
 const signed = new Map<string, { url: string; expires: number }>();
 const SIGNED_SECONDS = 3600;
@@ -78,6 +83,6 @@ export async function messageImageUrl(path: string) {
   return data.signedUrl;
 }
 
-export function publicUrl(bucket: 'posts' | 'avatars', path: string) {
+export function publicUrl(bucket: 'posts' | 'avatars' | 'music', path: string) {
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
