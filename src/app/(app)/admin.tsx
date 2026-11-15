@@ -61,6 +61,15 @@ function afterSheet(action: () => void) {
   setTimeout(action, 400);
 }
 
+/** O erro do servidor em texto, para a equipe saber o que aconteceu. */
+function describe(e: unknown) {
+  if (e && typeof e === 'object') {
+    const { code, message } = e as { code?: string; message?: string };
+    return [code, message].filter(Boolean).join(' · ') || String(e);
+  }
+  return String(e);
+}
+
 function failed() {
   Alert.alert(t('Não foi possível concluir'), t('Confira a internet e tente de novo.'));
 }
@@ -71,9 +80,15 @@ export default function AdminScreen() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [section, setSection] = useState<Section>('overview');
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   const loadStats = useCallback(() => {
-    fetchStats().then(setStats).catch(() => {});
+    fetchStats()
+      .then((data) => {
+        setStats(data);
+        setStatsError(null);
+      })
+      .catch((e) => setStatsError(describe(e)));
   }, []);
 
   useEffect(() => {
@@ -121,7 +136,11 @@ export default function AdminScreen() {
           return (
             <Pressable
               key={item.key}
-              onPress={() => setSection(item.key)}
+              onPress={() => {
+                setSection(item.key);
+                // Os números se atualizam toda vez que a Visão geral é aberta.
+                if (item.key === 'overview') loadStats();
+              }}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               style={({ pressed }) => [styles.menuItem, active && styles.menuItemActive, pressed && styles.pressed]}>
@@ -143,7 +162,7 @@ export default function AdminScreen() {
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets>
         {section === 'overview' ? (
-          <Overview stats={stats} onOpen={setSection} />
+          <Overview stats={stats} error={statsError} onRetry={loadStats} onOpen={setSection} />
         ) : section === 'reports' ? (
           <Reports onChanged={loadStats} />
         ) : section === 'people' ? (
@@ -158,8 +177,18 @@ export default function AdminScreen() {
 
 // ---------- Visão geral ----------
 
-function Overview({ stats, onOpen }: { stats: AdminStats | null; onOpen: (s: Section) => void }) {
-  if (!stats) return <ApertureLoader size={32} />;
+function Overview({
+  stats,
+  error,
+  onRetry,
+  onOpen,
+}: {
+  stats: AdminStats | null;
+  error: string | null;
+  onRetry: () => void;
+  onOpen: (s: Section) => void;
+}) {
+  if (!stats) return error ? <Retry detail={error} onPress={onRetry} /> : <ApertureLoader size={32} />;
   const n = (value: number) => value.toLocaleString(dateLocale());
   const cards: { label: string; value: number; sub?: string; open?: Section; alert?: boolean }[] = [
     { label: t('Pessoas'), value: stats.users, sub: t('+{n} em 7 dias', { n: n(stats.users_7d) }), open: 'people' },
@@ -206,7 +235,7 @@ const RESOLUTION_LABEL: Record<Resolution, string> = {
 function Reports({ onChanged }: { onChanged: () => void }) {
   const [onlyOpen, setOnlyOpen] = useState(true);
   const [reports, setReports] = useState<AdminReport[] | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [menu, setMenu] = useState<AdminReport | null>(null);
 
@@ -214,9 +243,9 @@ function Reports({ onChanged }: { onChanged: () => void }) {
     fetchReports(onlyOpen)
       .then((data) => {
         setReports(data);
-        setError(false);
+        setError(null);
       })
-      .catch(() => setError(true));
+      .catch((e) => setError(describe(e)));
   }, [onlyOpen]);
 
   useEffect(load, [load]);
@@ -277,7 +306,7 @@ function Reports({ onChanged }: { onChanged: () => void }) {
       </View>
       {reports === null ? (
         error ? (
-          <Retry onPress={load} />
+          <Retry detail={error} onPress={load} />
         ) : (
           <ApertureLoader size={32} />
         )
@@ -364,16 +393,16 @@ function People({ onChanged }: { onChanged: () => void }) {
   const { session } = useSession();
   const [query, setQuery] = useState('');
   const [people, setPeople] = useState<AdminUser[] | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [menu, setMenu] = useState<AdminUser | null>(null);
 
   const load = useCallback((q: string) => {
     fetchUsers(q.trim())
       .then((data) => {
         setPeople(data);
-        setError(false);
+        setError(null);
       })
-      .catch(() => setError(true));
+      .catch((e) => setError(describe(e)));
   }, []);
 
   // Busca enquanto digita, com uma pequena pausa.
@@ -448,7 +477,7 @@ function People({ onChanged }: { onChanged: () => void }) {
       />
       {people === null ? (
         error ? (
-          <Retry onPress={() => load(query)} />
+          <Retry detail={error} onPress={() => load(query)} />
         ) : (
           <ApertureLoader size={32} />
         )
@@ -496,15 +525,15 @@ function People({ onChanged }: { onChanged: () => void }) {
 
 function FeedbackList({ onChanged }: { onChanged: () => void }) {
   const [items, setItems] = useState<AdminFeedback[] | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetchFeedback()
       .then((data) => {
         setItems(data);
-        setError(false);
+        setError(null);
       })
-      .catch(() => setError(true));
+      .catch((e) => setError(describe(e)));
   }, []);
 
   useEffect(load, [load]);
@@ -527,7 +556,7 @@ function FeedbackList({ onChanged }: { onChanged: () => void }) {
       <Text style={styles.title}>{t('Feedback')}</Text>
       {items === null ? (
         error ? (
-          <Retry onPress={load} />
+          <Retry detail={error} onPress={load} />
         ) : (
           <ApertureLoader size={32} />
         )
@@ -593,10 +622,11 @@ function Chips({
   );
 }
 
-function Retry({ onPress }: { onPress: () => void }) {
+function Retry({ detail, onPress }: { detail?: string | null; onPress: () => void }) {
   return (
     <View style={styles.section}>
       <FormMessage text={t('Não foi possível carregar a lista.')} />
+      {detail ? <Text style={styles.small} selectable>{detail}</Text> : null}
       <Button variant="ghost" title={t('Tentar de novo')} onPress={onPress} />
     </View>
   );
