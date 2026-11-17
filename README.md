@@ -43,7 +43,7 @@ npx eas-cli@latest build -p ios --profile production --auto-submit
 
 O primeiro build pede o login da Apple e cria certificados e o app no App Store Connect. Depois que o build chega lá, adicione os testers em **App Store Connect > TestFlight**: até 100 pessoas do time sem revisão, ou até 10.000 por link público depois de uma revisão rápida da Apple.
 
-O identificador do app é `br.com.vendra.sixteennine` (em `app.json`). Troque antes do primeiro build se preferir outro; depois não muda mais.
+O identificador do app no iPhone é `br.com.vendra.sixteennine` e no Android é `com.sixteennine.app` (em `app.json`). O do Android tem que ser igual ao cadastrado no Google Play Console. Depois do primeiro envio às lojas, nenhum dos dois muda mais.
 
 ## Idiomas
 
