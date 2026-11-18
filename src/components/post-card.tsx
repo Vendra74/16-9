@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApertureLoader } from '@/components/aperture';
 import { Avatar } from '@/components/avatar';
 import { ClapperButton } from '@/components/clapper-button';
+import { ZoomableImage } from '@/components/zoomable-image';
 import { CommentIcon, MessagesIcon, MoreIcon, MusicIcon, SendIcon, SoundIcon } from '@/components/rail-icons';
 import { Colors, Spacing } from '@/constants/theme';
 import { settingsLine } from '@/lib/exif';
@@ -37,9 +38,11 @@ type Props = {
   onMessage: () => void;
   onShare: () => void;
   onMore: () => void;
+  /** A foto entrou ou saiu do zoom: quem está em volta trava a rolagem enquanto isso. */
+  onZoomChange?: (zoomed: boolean) => void;
 };
 
-export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onLikers, onAuthor, onComment, onMessage, onShare, onMore }: Props) {
+export function PostCard({ post, width, height, isMine, active, muted, onToggleSound, liked, onLike, onLikers, onAuthor, onComment, onMessage, onShare, onMore, onZoomChange }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   /** Carrossel: qual foto está na moldura. */
@@ -58,35 +61,65 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
   const hasSound = playable || (Boolean(musicUrl) && ready);
   const hasCaption = Boolean(post.title || post.location || gear || song);
 
+  /** Com zoom, as informações saem da frente para a foto aparecer inteira; ao voltar, reaparecem. */
+  const [zoomed, setZoomed] = useState(false);
+  function zoomChange(value: boolean) {
+    setZoomed(value);
+    setShowInfo(!value);
+    onZoomChange?.(value);
+  }
+  const toggleInfo = () => setShowInfo((v) => !v);
+
   return (
-    <Pressable style={[styles.frame, { width, height }]} onPress={() => setShowInfo((v) => !v)}>
+    <View style={[styles.frame, { width, height }]}>
       {carousel ? (
-        // Carrossel: deslizar de lado troca a foto; o toque continua mostrando ou escondendo as informações.
+        // Carrossel: deslizar de lado troca a foto; o toque mostra ou esconde as informações; pinça amplia.
+        // Com zoom, o deslizar fica travado e um dedo passeia pela foto; toque duplo (ou pinça de volta) solta o carrossel.
         <ScrollView
           horizontal
           pagingEnabled
+          scrollEnabled={!zoomed}
           showsHorizontalScrollIndicator={false}
           style={StyleSheet.absoluteFill}
           scrollEventThrottle={32}
           onScroll={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width)))}>
           {images.map((uri, index) => (
-            <Pressable key={uri} onPress={() => setShowInfo((v) => !v)} accessible={false}>
-              <Image
-                source={{ uri }}
-                style={{ width, height }}
-                contentFit="cover"
-                transition={index === 0 ? 400 : 0}
-                onLoad={index === 0 ? () => setLoaded(true) : undefined}
-                accessibilityLabel={t('{title}, {n} de {total}', { title: post.title || t('Foto de {name}', { name }), n: index + 1, total: images.length })}
-              />
-            </Pressable>
+            <ZoomableImage
+              key={uri}
+              uri={uri}
+              width={width}
+              height={height}
+              onTap={toggleInfo}
+              onZoomChange={zoomChange}
+              resetKey={`${active}-${page === index}`}
+              transition={index === 0 ? 400 : 0}
+              onLoad={index === 0 ? () => setLoaded(true) : undefined}
+              accessibilityLabel={t('{title}, {n} de {total}', { title: post.title || t('Foto de {name}', { name }), n: index + 1, total: images.length })}
+            />
           ))}
         </ScrollView>
+      ) : isVideo ? (
+        // Vídeo: sem zoom; tocar mostra ou esconde as informações (o vídeo por cima deixa o toque passar).
+        <Pressable style={StyleSheet.absoluteFill} onPress={toggleInfo} accessible={false}>
+          <Image
+            source={{ uri: postImageUrl(post) }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={400}
+            recyclingKey={post.id}
+            onLoad={() => setLoaded(true)}
+            accessibilityLabel={post.title || t('Foto de {name}', { name })}
+          />
+        </Pressable>
       ) : (
-        <Image
-          source={{ uri: postImageUrl(post) }}
+        <ZoomableImage
+          uri={postImageUrl(post)}
+          width={width}
+          height={height}
           style={StyleSheet.absoluteFill}
-          contentFit="cover"
+          onTap={toggleInfo}
+          onZoomChange={zoomChange}
+          resetKey={active}
           transition={400}
           recyclingKey={post.id}
           onLoad={() => setLoaded(true)}
@@ -94,7 +127,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
         />
       )}
 
-      {carousel ? (
+      {carousel && !zoomed ? (
         <View style={styles.counter} pointerEvents="none">
           <Text style={styles.counterText}>
             {Math.min(page, images.length - 1) + 1}/{images.length}
@@ -200,7 +233,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
           </View>
         </>
       )}
-    </Pressable>
+    </View>
   );
 }
 

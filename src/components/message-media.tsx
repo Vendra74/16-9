@@ -3,9 +3,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { Alert, Image as NativeImage, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApertureLoader } from '@/components/aperture';
+import { ZoomableImage } from '@/components/zoomable-image';
 import { Colors, FrameRatio, Spacing } from '@/constants/theme';
 import { messageImageUrl } from '@/lib/images';
 import type { Media, Message } from '@/lib/messages';
@@ -96,7 +98,10 @@ export function MediaThumb({ message, onOpen }: { message: Message; onOpen: () =
 export function MediaViewer({ message, onClose }: { message: Message | null; onClose: () => void }) {
   return (
     <Modal visible={message !== null} animationType="fade" supportedOrientations={['landscape']} onRequestClose={onClose}>
-      {message ? <Viewer key={message.id} message={message} onClose={onClose} /> : null}
+      {/* O Modal é outra janela no Android: os gestos do zoom precisam de uma raiz própria aqui. */}
+      <GestureHandlerRootView style={styles.root}>
+        {message ? <Viewer key={message.id} message={message} onClose={onClose} /> : null}
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -110,7 +115,8 @@ function Viewer({ message, onClose }: { message: Message; onClose: () => void })
       {message.kind === 'video' && message.video_url ? (
         <ViewerVideo uri={message.video_url} width={window.width} height={window.height} />
       ) : url ? (
-        <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="contain" />
+        // Pinça para ampliar, arrastar para passear e toque duplo para ampliar ou voltar.
+        <ZoomableImage uri={url} width={window.width} height={window.height} contentFit="contain" style={StyleSheet.absoluteFill} />
       ) : (
         <ApertureLoader />
       )}
@@ -138,6 +144,9 @@ function ViewerVideo({ uri, width, height }: { uri: string; width: number; heigh
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   thumb: {
     borderRadius: 8,
     overflow: 'hidden',

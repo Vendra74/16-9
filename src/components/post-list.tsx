@@ -45,6 +45,8 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
   const [visibleId, setVisibleId] = useState<string | null>(null);
   // O som vale para a sequência toda: ligou num vídeo, os próximos já tocam com som.
   const [muted, setMuted] = useState(true);
+  /** Post cuja foto está com zoom (o feed não rola enquanto isso). */
+  const [zoomedId, setZoomedId] = useState<string | null>(null);
   const { session } = useSession();
   const me = session?.user.id;
   const list = useRef<FlatList<FeedPost>>(null);
@@ -159,6 +161,8 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
           data={posts}
           keyExtractor={(item) => item.id}
           pagingEnabled
+          // Foto com zoom: o dedo passeia pela foto em vez de rolar o feed.
+          scrollEnabled={!zoomedId || !posts.some((p) => p.id === zoomedId)}
           showsVerticalScrollIndicator={false}
           decelerationRate="fast"
           initialScrollIndex={initialIndex}
@@ -186,6 +190,7 @@ export function PostList({ posts, onChange, onBlocked, onRefresh, startId }: Pro
                 onMessage={() => messageAuthor(item)}
                 onShare={() => setSharing(item)}
                 onMore={() => more(item)}
+                onZoomChange={(zoomed) => setZoomedId((id) => (zoomed ? item.id : id === item.id ? null : id))}
               />
             </View>
           )}
