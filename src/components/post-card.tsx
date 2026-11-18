@@ -61,7 +61,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
   const hasSound = playable || (Boolean(musicUrl) && ready);
   const hasCaption = Boolean(post.title || post.location || gear || song);
 
-  /** Com zoom, as informações saem da frente para a foto aparecer inteira; ao voltar, reaparecem. */
+  /** Durante a pinça, as informações saem da frente para a foto aparecer inteira; ao soltar, reaparecem. */
   const [zoomed, setZoomed] = useState(false);
   function zoomChange(value: boolean) {
     setZoomed(value);
@@ -73,8 +73,8 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
   return (
     <View style={[styles.frame, { width, height }]}>
       {carousel ? (
-        // Carrossel: deslizar de lado troca a foto; o toque mostra ou esconde as informações; pinça amplia.
-        // Com zoom, o deslizar fica travado e um dedo passeia pela foto; toque duplo (ou pinça de volta) solta o carrossel.
+        // Carrossel: deslizar de lado troca a foto; o toque mostra ou esconde as informações;
+        // pinça amplia enquanto os dedos estão na tela (o deslizar fica travado só durante a pinça).
         <ScrollView
           horizontal
           pagingEnabled
@@ -89,6 +89,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
               uri={uri}
               width={width}
               height={height}
+              peek
               onTap={toggleInfo}
               onZoomChange={zoomChange}
               resetKey={`${active}-${page === index}`}
@@ -117,6 +118,7 @@ export function PostCard({ post, width, height, isMine, active, muted, onToggleS
           width={width}
           height={height}
           style={StyleSheet.absoluteFill}
+          peek
           onTap={toggleInfo}
           onZoomChange={zoomChange}
           resetKey={active}

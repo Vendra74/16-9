@@ -32,7 +32,12 @@ type Props = {
   height: number;
   /** "cover" no feed (a foto preenche a moldura) e "contain" em tela cheia. */
   contentFit?: ImageContentFit;
-  /** Toque simples (ex.: mostrar ou esconder as informações). Espera o toque duplo falhar. */
+  /**
+   * Zoom "de espiar", como no Instagram: só a pinça amplia e a foto volta ao normal ao soltar os dedos.
+   * Sem isto (tela cheia), a foto fica ampliada, um dedo passeia por ela e o toque duplo amplia ou volta.
+   */
+  peek?: boolean;
+  /** Toque simples (ex.: mostrar ou esconder as informações). Sem `peek`, espera o toque duplo falhar. */
   onTap?: () => void;
   /** Avisa quando a foto entra ou sai do zoom, para travar a rolagem de quem está em volta. */
   onZoomChange?: (zoomed: boolean) => void;
@@ -57,15 +62,16 @@ function clamp(value: number, min: number, max: number) {
 }
 
 /**
- * Foto com zoom como em qualquer galeria: pinça para ampliar, arrastar com um dedo
- * quando ampliada e toque duplo para ampliar ou voltar. Sem zoom, um dedo não faz nada aqui,
- * então a rolagem do feed e o deslizar do carrossel continuam funcionando.
+ * Foto com zoom pela pinça. No feed (`peek`), volta ao normal ao soltar os dedos, como no Instagram.
+ * Em tela cheia, funciona como uma galeria: fica ampliada, um dedo passeia e o toque duplo amplia ou volta.
+ * Sem zoom, um dedo não faz nada aqui, então a rolagem do feed e o deslizar do carrossel continuam funcionando.
  */
 export function ZoomableImage({
   uri,
   width,
   height,
   contentFit = 'cover',
+  peek = false,
   onTap,
   onZoomChange,
   resetKey,
@@ -79,6 +85,8 @@ export function ZoomableImage({
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const zoomed = useSharedValue(false);
+  /** Arrastar com um dedo: só com zoom e fora do modo de espiar. */
+  const canPan = useSharedValue(false);
   const pinching = useSharedValue(false);
 
   // Ponto de partida de cada gesto.
@@ -110,9 +118,10 @@ export function ZoomableImage({
     () => pinching.value || scale.value > ZOOM_EPSILON,
     (now, before) => {
       zoomed.set(now);
+      canPan.set(now && !peek);
       if (before !== null && now !== before && onZoomChange) scheduleOnRN(onZoomChange, now);
     },
-    [onZoomChange],
+    [onZoomChange, peek],
   );
 
   /** Leva a foto para dentro dos limites, com animação. */
@@ -139,7 +148,7 @@ export function ZoomableImage({
     onUpdate: (e) => {
       'worklet';
       // Um pouco de folga além dos limites durante o gesto; ao soltar, volta para dentro.
-      const s = clamp(startScale.value * e.scale, 0.85, MAX_SCALE * 1.3);
+      const s = clamp(startScale.value * e.scale, peek ? 1 : 0.85, MAX_SCALE * 1.3);
       // O ponto da foto que estava entre os dedos continua entre os dedos (e acompanha se eles andarem).
       const px = (originX.value - startX.value) / startScale.value;
       const py = (originY.value - startY.value) / startScale.value;
@@ -149,6 +158,13 @@ export function ZoomableImage({
     },
     onDeactivate: () => {
       'worklet';
+      // Espiar: ao soltar, a foto volta ao tamanho e ao lugar de antes.
+      if (peek) {
+        scale.set(withTiming(1, SNAP));
+        tx.set(withTiming(0, SNAP));
+        ty.set(withTiming(0, SNAP));
+        return;
+      }
       settle(scale.value < ZOOM_EPSILON ? 1 : scale.value);
     },
     onFinalize: () => {
@@ -159,7 +175,7 @@ export function ZoomableImage({
 
   // Arrastar com um dedo só vale com zoom; sem zoom o toque segue para o feed e o carrossel.
   const pan = usePanGesture({
-    enabled: zoomed,
+    enabled: canPan,
     maxPointers: 1,
     onActivate: () => {
       'worklet';
@@ -184,6 +200,8 @@ export function ZoomableImage({
   });
 
   const doubleTap = useTapGesture({
+    // Espiar: sem toque duplo, assim o toque simples responde na hora.
+    enabled: !peek,
     numberOfTaps: 2,
     onActivate: (e) => {
       'worklet';
