@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { SplashOverlay } from '@/components/splash-overlay';
 import { Colors } from '@/constants/theme';
@@ -19,6 +20,8 @@ const theme = {
 
 export default function RootLayout() {
   return (
+    // Necessário para os gestos de pinça e arrastar (zoom nas fotos).
+    <GestureHandlerRootView style={styles.root}>
     <SessionProvider>
       <ThemeProvider value={theme}>
         <StatusBar hidden />
@@ -28,6 +31,7 @@ export default function RootLayout() {
         <SplashOverlay />
       </ThemeProvider>
     </SessionProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -57,6 +61,9 @@ function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   blank: {
     flex: 1,
     backgroundColor: Colors.background,
